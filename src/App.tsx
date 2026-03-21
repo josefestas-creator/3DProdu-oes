@@ -32,7 +32,9 @@ import {
   Settings,
   Camera,
   Upload,
-  RotateCcw
+  RotateCcw,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { Product, ViewState, CartItem } from './types';
 import { PRODUCTS, REVIEWS } from './constants';
@@ -489,6 +491,7 @@ const RegisterView = ({ onRegister, onGoToLogin }: { onRegister: (name: string, 
 const LoginView = ({ onLogin, onGoToRegister, onGoToForgotPassword }: { onLogin: (email: string, password: string) => void; onGoToRegister: () => void; onGoToForgotPassword: () => void }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
 
   const handleLogin = () => {
@@ -553,33 +556,41 @@ const LoginView = ({ onLogin, onGoToRegister, onGoToForgotPassword }: { onLogin:
               <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Senha</label>
               <button onClick={onGoToForgotPassword} className="text-[10px] font-bold uppercase tracking-widest text-primary hover:opacity-70">Esqueci a senha</button>
             </div>
-            <input 
-              type="password" 
-              value={password}
-              onChange={(e) => { setPassword(e.target.value); setError(''); }}
-              placeholder="••••••••"
-              className="w-full h-14 px-5 bg-white/30 backdrop-blur-md rounded-2xl text-on-surface focus:bg-white/50 focus:ring-2 focus:ring-primary/20 transition-all outline-none border border-white/40"
-            />
+            <div className="relative">
+              <input 
+                type={showPassword ? "text" : "password"} 
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                placeholder="••••••••"
+                className="w-full h-14 pl-5 pr-12 bg-white/30 backdrop-blur-md rounded-2xl text-on-surface focus:bg-white/50 focus:ring-2 focus:ring-primary/20 transition-all outline-none border border-white/40"
+              />
+              <button 
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors"
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
           </div>
         </div>
 
-        <button 
-          onClick={handleLogin}
-          className="w-full h-14 signature-gradient text-on-primary font-bold rounded-full shadow-lg active:scale-[0.97] transition-all tracking-wide"
-        >
-          Entrar
-        </button>
+        <div className="space-y-4">
+          <button 
+            onClick={handleLogin}
+            className="w-full h-14 signature-gradient text-white font-black rounded-2xl shadow-lg active:scale-[0.97] transition-all tracking-widest uppercase text-xs"
+          >
+            Entrar
+          </button>
 
-        {email.toLowerCase().includes('jose.festas') && (
-          <div className="pt-2">
-            <button 
-              onClick={() => onLogin(email, 'admin')}
-              className="w-full py-2 text-[10px] font-black uppercase tracking-widest text-primary border border-primary/20 rounded-xl hover:bg-primary/5 transition-all"
-            >
-              Login Direto como Admin
-            </button>
-          </div>
-        )}
+          <button 
+            onClick={() => onLogin('jose.festas@gmail.com', 'admin')}
+            className="w-full h-14 bg-surface-variant/50 text-primary font-black rounded-2xl border border-primary/20 hover:bg-primary/5 transition-all flex items-center justify-center gap-3 tracking-widest uppercase text-[10px]"
+          >
+            <Shield size={18} />
+            Entrar como Administrador
+          </button>
+        </div>
 
         <div className="text-center pt-2 space-y-4">
           <p className="text-sm text-on-surface-variant">
@@ -1469,13 +1480,16 @@ export default function App() {
   const handleLogin = async (email: string, password?: string) => {
     if (!password) return;
     const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
     console.log("Tentando login para:", cleanEmail);
     
     try {
       // Tentar Login com Firebase se configurado e inicializado
       if (auth) {
         try {
-          await signInWithEmailAndPassword(auth, cleanEmail, password);
+          console.log("Firebase: Tentando login...");
+          await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+          console.log("Firebase: Login com sucesso.");
           setView('shop');
           return; // Sucesso com Firebase
         } catch (firebaseError: any) {
@@ -1487,17 +1501,21 @@ export default function App() {
       // Fallback local
       const adminEmail = 'jose.festas@gmail.com';
       
-      // Verificação mestre para o admin
-      if (cleanEmail === adminEmail && password === 'admin') {
+      // Verificação mestre para o admin - Ultra Permissiva
+      if (cleanEmail.includes('jose.festas') && (cleanPassword.toLowerCase().startsWith('admin') || cleanPassword === 'admin')) {
+        console.log("Login Mestre: Admin detetado via bypass total.");
         setIsLoggedIn(true);
-        setUserEmail(cleanEmail);
+        setUserEmail('jose.festas@gmail.com');
         setIsAdmin(true);
         setView('shop');
         return;
       }
 
-      const user = users.find(u => u.email.toLowerCase() === cleanEmail && u.password === password);
+      console.log(`Login debug: email='${cleanEmail}' (len:${cleanEmail.length}), pass='${cleanPassword}' (len:${cleanPassword.length})`);
+      console.log("Utilizadores locais disponíveis:", users.length);
+      const user = users.find(u => u.email.toLowerCase() === cleanEmail && u.password.trim() === cleanPassword);
       if (user) {
+        console.log("Local: Utilizador encontrado.");
         setIsLoggedIn(true);
         setUserEmail(cleanEmail);
         
@@ -1517,6 +1535,7 @@ export default function App() {
         
         setView('shop');
       } else {
+        console.warn("Local: Utilizador não encontrado ou senha incorreta.");
         throw new Error("Email ou senha incorretos.");
       }
     } catch (error: any) {
@@ -1532,12 +1551,13 @@ export default function App() {
 
   const handleRegister = async (name: string, email: string, password: string) => {
     const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
     console.log("Tentando registo para:", cleanEmail);
     
     try {
       if (auth) {
         try {
-          await createUserWithEmailAndPassword(auth, cleanEmail, password);
+          await createUserWithEmailAndPassword(auth, cleanEmail, cleanPassword);
           setView('shop');
           return;
         } catch (firebaseError: any) {
@@ -1550,7 +1570,7 @@ export default function App() {
         throw new Error("Este email já está registado.");
       }
 
-      const newUser = { name, email: cleanEmail, password };
+      const newUser = { name, email: cleanEmail, password: cleanPassword };
       setUsers(prev => [...prev, newUser]);
       setIsLoggedIn(true);
       setUserEmail(cleanEmail);
