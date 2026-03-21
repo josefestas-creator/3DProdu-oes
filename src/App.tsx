@@ -53,6 +53,42 @@ const CONTACT_NUMBER = "913300013";
 const WHATSAPP_MESSAGE = encodeURIComponent("Olá! Gostaria de saber mais sobre as vossas peças 3D.");
 const WHATSAPP_LINK = `https://wa.me/351${CONTACT_NUMBER}?text=${WHATSAPP_MESSAGE}`;
 
+// --- Utils ---
+const compressImage = (base64Str: string, maxWidth = 800, maxHeight = 800, quality = 0.7): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.src = base64Str;
+    img.onerror = (err) => reject(err);
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > maxWidth) {
+          height *= maxWidth / width;
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width *= maxHeight / height;
+          height = maxHeight;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(base64Str);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+  });
+};
+
 // --- Components ---
 
 const RequestModal = ({ 
@@ -1168,8 +1204,16 @@ const AdminView = ({
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData({ ...formData, imageUrl: reader.result as string });
+      reader.onloadend = async () => {
+        const base64 = reader.result as string;
+        // Compress image before setting it to state
+        try {
+          const compressed = await compressImage(base64);
+          setFormData({ ...formData, imageUrl: compressed });
+        } catch (error) {
+          console.error("Erro ao comprimir imagem:", error);
+          setFormData({ ...formData, imageUrl: base64 });
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -1473,27 +1517,54 @@ export default function App() {
 
   // Persistence
   useEffect(() => {
-    localStorage.setItem('3dproducoes_cart', JSON.stringify(cart));
+    try {
+      localStorage.setItem('3dproducoes_cart', JSON.stringify(cart));
+    } catch (e) {
+      console.error("Erro ao salvar carrinho no localStorage:", e);
+    }
   }, [cart]);
 
   useEffect(() => {
-    localStorage.setItem('3dproducoes_view', view);
+    try {
+      localStorage.setItem('3dproducoes_view', view);
+    } catch (e) {
+      console.error("Erro ao salvar vista no localStorage:", e);
+    }
   }, [view]);
 
   useEffect(() => {
-    localStorage.setItem('3dproducoes_isLoggedIn', isLoggedIn.toString());
+    try {
+      localStorage.setItem('3dproducoes_isLoggedIn', isLoggedIn.toString());
+    } catch (e) {
+      console.error("Erro ao salvar estado de login no localStorage:", e);
+    }
   }, [isLoggedIn]);
 
   useEffect(() => {
-    localStorage.setItem('3dproducoes_userEmail', userEmail);
+    try {
+      localStorage.setItem('3dproducoes_userEmail', userEmail);
+    } catch (e) {
+      console.error("Erro ao salvar email no localStorage:", e);
+    }
   }, [userEmail]);
 
   useEffect(() => {
-    localStorage.setItem('3dproducoes_products', JSON.stringify(products));
+    try {
+      localStorage.setItem('3dproducoes_products', JSON.stringify(products));
+    } catch (e) {
+      console.error("Erro ao salvar produtos no localStorage:", e);
+      if (e instanceof Error && e.name === 'QuotaExceededError') {
+        alert("O limite de armazenamento local foi excedido. Tente remover alguns produtos ou usar imagens menores.");
+      }
+    }
   }, [products]);
 
   useEffect(() => {
-    localStorage.setItem('3dproducoes_users', JSON.stringify(users));
+    try {
+      localStorage.setItem('3dproducoes_users', JSON.stringify(users));
+    } catch (e) {
+      console.error("Erro ao salvar utilizadores no localStorage:", e);
+    }
   }, [users]);
 
   const cartCount = useMemo(() => cart.reduce((acc, item) => acc + item.quantity, 0), [cart]);
