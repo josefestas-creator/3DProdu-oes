@@ -1,0 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-headline: "Manrope", sans-serif;
+  
+  --color-primary: #0047c9;
+  --color-primary-container: #005cff;
+  --color-on-primary: #ffffff;
+  --color-surface: #f8faff;
+  --color-surface-container: #ecedfa;
+  --color-surface-container-low: #f3f3ff;
+  --color-surface-container-high: #e7e7f4;
+  --color-surface-container-lowest: #ffffff;
+  --color-on-surface: #191b24;
+  --color-on-surface-variant: #424656;
+  --color-outline: #737688;
+  --color-outline-variant: #c3c5d9;
+}
+
+@layer base {
+  body {
+    @apply bg-surface text-on-surface font-sans antialiased;
+    background: linear-gradient(135deg, #f0f4ff 0%, #e6eeff 100%);
+    min-height: 100vh;
+  }
+}
+
+.glass-panel {
+  @apply bg-white/40 backdrop-blur-xl border border-white/50;
+}
+
+.glass-card {
+  @apply bg-white/40 backdrop-blur-md border border-primary/10;
+}
+
+.signature-gradient {
+  background: linear-gradient(135deg, #0047c9 0%, #005cff 100%);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
