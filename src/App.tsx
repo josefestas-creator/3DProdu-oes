@@ -34,7 +34,9 @@ import {
   Upload,
   RotateCcw,
   Eye,
-  EyeOff
+  EyeOff,
+  ClipboardList,
+  Send
 } from 'lucide-react';
 import { Product, ViewState, CartItem } from './types';
 import { PRODUCTS, REVIEWS } from './constants';
@@ -53,18 +55,94 @@ const WHATSAPP_LINK = `https://wa.me/351${CONTACT_NUMBER}?text=${WHATSAPP_MESSAG
 
 // --- Components ---
 
-const WhatsAppButton = () => (
-  <motion.button
-    initial={{ scale: 0, opacity: 0 }}
-    animate={{ scale: 1, opacity: 1 }}
-    whileHover={{ scale: 1.1 }}
-    whileTap={{ scale: 0.9 }}
-    onClick={() => window.open(WHATSAPP_LINK, '_blank')}
-    className="fixed bottom-24 right-6 z-[60] w-14 h-14 bg-[#25D366] text-white rounded-full shadow-2xl flex items-center justify-center hover:bg-[#128C7E] transition-colors"
-  >
-    <MessageCircle size={28} fill="currentColor" />
-  </motion.button>
-);
+const RequestModal = ({ 
+  show, 
+  onClose, 
+  onSubmit 
+}: { 
+  show: boolean; 
+  onClose: () => void; 
+  onSubmit: (data: { type: string; description: string; contact: string }) => void;
+}) => {
+  const [type, setType] = useState('new');
+  const [description, setDescription] = useState('');
+  const [contact, setContact] = useState('');
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+      />
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+        className="glass-panel p-8 rounded-[2.5rem] w-full max-w-md relative z-10 shadow-2xl border border-white/40"
+      >
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-black text-on-surface">Pedido de Peça</h3>
+          <button onClick={onClose} className="p-2 hover:bg-black/5 rounded-full transition-colors">
+            <X size={20} className="text-outline" />
+          </button>
+        </div>
+
+        <div className="space-y-6">
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant ml-1">Tipo de Pedido</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button 
+                onClick={() => setType('new')}
+                className={`h-12 rounded-xl font-bold text-xs transition-all ${type === 'new' ? 'signature-gradient text-white' : 'bg-white/30 text-on-surface border border-white/40'}`}
+              >
+                Nova Peça
+              </button>
+              <button 
+                onClick={() => setType('alteration')}
+                className={`h-12 rounded-xl font-bold text-xs transition-all ${type === 'alteration' ? 'signature-gradient text-white' : 'bg-white/30 text-on-surface border border-white/40'}`}
+              >
+                Alteração
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant ml-1">Descrição do Pedido</label>
+            <textarea 
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Descreva o que pretende (ex: cor, tamanho, modelo...)"
+              className="w-full h-32 p-4 bg-white/30 backdrop-blur-md rounded-2xl text-on-surface focus:bg-white/50 focus:ring-2 focus:ring-primary/20 transition-all outline-none border border-white/40 resize-none"
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant ml-1">Contacto (Opcional)</label>
+            <input 
+              type="text"
+              value={contact}
+              onChange={(e) => setContact(e.target.value)}
+              placeholder="Telemóvel ou Email"
+              className="w-full h-14 px-5 bg-white/30 backdrop-blur-md rounded-2xl text-on-surface focus:bg-white/50 focus:ring-2 focus:ring-primary/20 transition-all outline-none border border-white/40"
+            />
+          </div>
+
+          <button 
+            onClick={() => onSubmit({ type, description, contact })}
+            disabled={!description}
+            className="w-full h-14 signature-gradient text-white font-black rounded-2xl shadow-lg active:scale-[0.97] transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Send size={20} />
+            Enviar Pedido
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
 
 const Header = ({ 
   title, 
@@ -804,13 +882,15 @@ const ProfileView = ({
   userEmail, 
   onLogout, 
   onGoToReviews, 
-  onGoToAdmin
+  onGoToAdmin,
+  onOpenRequest
 }: { 
   products: Product[]; 
   userEmail: string; 
   onLogout: () => void; 
   onGoToReviews: () => void; 
   onGoToAdmin: () => void;
+  onOpenRequest: () => void;
 }) => {
   const isAdmin = userEmail.toLowerCase() === 'jose.festas@gmail.com';
 
@@ -844,6 +924,13 @@ const ProfileView = ({
           )}
         </div>
         <div className="flex flex-col gap-3 w-full max-w-xs">
+          <button 
+            onClick={onOpenRequest}
+            className="bg-primary text-white font-bold px-8 py-4 rounded-full flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all hover:bg-primary/90"
+          >
+            <ClipboardList size={20} />
+            Pedir Nova Peça / Alteração
+          </button>
           <button 
             onClick={() => window.open(WHATSAPP_LINK, '_blank')}
             className="bg-[#25D366] text-white font-bold px-8 py-4 rounded-full flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all hover:bg-[#128C7E]"
@@ -1341,6 +1428,7 @@ export default function App() {
     return saved ? JSON.parse(saved) : PRODUCTS;
   });
   const [searchQuery, setSearchQuery] = useState('');
+  const [showRequestModal, setShowRequestModal] = useState(false);
   const [modal, setModal] = useState<{ show: boolean; title: string; message: string; onConfirm?: () => void; type: 'confirm' | 'alert' }>({
     show: false,
     title: '',
@@ -1669,6 +1757,23 @@ export default function App() {
     localStorage.removeItem('3dproducoes_products');
   };
 
+  const handleRequestSubmit = (data: { type: string; description: string; contact: string }) => {
+    const typeLabel = data.type === 'new' ? 'Nova Peça' : 'Alteração de Peça';
+    const message = `*Pedido de ${typeLabel}*\n\n*Descrição:* ${data.description}\n*Contacto:* ${data.contact || userEmail}`;
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappLink = `https://wa.me/351${CONTACT_NUMBER}?text=${encodedMessage}`;
+    
+    window.open(whatsappLink, '_blank');
+    setShowRequestModal(false);
+    
+    setModal({
+      show: true,
+      title: "Pedido Enviado",
+      message: "O seu pedido foi enviado via WhatsApp. Entraremos em contacto em breve!",
+      type: 'alert'
+    });
+  };
+
   return (
     <div className="min-h-screen">
       <AnimatePresence mode="wait">
@@ -1739,6 +1844,7 @@ export default function App() {
                   onLogout={handleLogout} 
                   onGoToReviews={() => setView('reviews')} 
                   onGoToAdmin={() => setView('admin')} 
+                  onOpenRequest={() => setShowRequestModal(true)}
                 />
               )}
               {view === 'reviews' && <ReviewsView onBack={() => setView('profile')} />}
@@ -1771,6 +1877,16 @@ export default function App() {
 
             <BottomNav activeView={view} setView={setView} cartCount={cartCount} isAdmin={isAdmin} />
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showRequestModal && (
+          <RequestModal 
+            show={showRequestModal} 
+            onClose={() => setShowRequestModal(false)} 
+            onSubmit={handleRequestSubmit} 
+          />
         )}
       </AnimatePresence>
 
