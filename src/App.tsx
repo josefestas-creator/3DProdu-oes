@@ -174,6 +174,20 @@ const compressImage = (base64Str: string, maxWidth = 500, maxHeight = 500, quali
 
 // --- Components ---
 
+const Logo = ({ size = "md", className = "" }: { size?: "sm" | "md" | "lg", className?: string }) => {
+  const sizeClasses = {
+    sm: "w-8 h-8 rounded-lg text-[10px]",
+    md: "w-16 h-16 rounded-2xl text-xl",
+    lg: "w-24 h-24 rounded-3xl text-3xl"
+  };
+  
+  return (
+    <div className={`${sizeClasses[size]} signature-gradient flex items-center justify-center text-white font-black shadow-lg ${className}`}>
+      3D
+    </div>
+  );
+};
+
 const RequestModal = ({ 
   show, 
   onClose, 
@@ -294,7 +308,7 @@ const Header = ({
         )}
         {!isSearching && (
           <>
-            <div className="w-8 h-8 rounded-lg signature-gradient flex items-center justify-center text-white font-black text-xs">3D</div>
+            <Logo size="sm" />
             <h1 className="text-xl font-black tracking-tight text-on-surface font-headline truncate" style={{ textShadow: '1px 1px 0px #c3c5d9', letterSpacing: '-0.02em' }}>
               {title}
             </h1>
@@ -464,14 +478,9 @@ const LandingView = ({ onGoToLogin, onGoToRegister }: { onGoToLogin: () => void;
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ delay: 0.2 }}
-        className="w-24 h-24 mb-8 flex items-center justify-center rounded-[2rem] shadow-2xl bg-white overflow-hidden"
+        className="mb-8"
       >
-        <img 
-          src="https://lh3.googleusercontent.com/aida/ADBb0ugDJkWWFfXDeFB17qutG2dAu3CvBcphszQuCJD4_jeowx4tTXDM6YRxHpv_GqF5e-L98tMsYMx9Ja_5bwnD2VnnZiez6XEvyeBk0Dg0udwzl42kR5P5mM_xSgBPESxZTGlzxRdYGCClKeMXhvfhWnpOhZjiUKdMx7LV89m2BUYmknlwC5GV3mJVZXMXtHU_Ep66hf9VXkNYZKTxefyDJrMCLRwd6Q6o16ne55QJFFgYViU2sp7fniOQSMi8wFaA6NLp17n-enw72Q" 
-          alt="Logo"
-          className="w-full h-full object-cover"
-          referrerPolicy="no-referrer"
-        />
+        <Logo size="lg" />
       </motion.div>
       <h1 className="text-4xl font-black tracking-tighter text-on-surface mb-4 font-headline">3Dproduções</h1>
       <p className="text-on-surface-variant text-lg max-w-xs leading-relaxed">
@@ -716,13 +725,8 @@ const LoginView = ({ onLogin, onGoToRegister, onGoToForgotPassword, onGoogleLogi
       className="min-h-screen flex flex-col items-center justify-center px-6 py-12 relative overflow-hidden"
     >
       <div className="mb-12 flex flex-col items-center z-10">
-        <div className="w-20 h-20 mb-6 flex items-center justify-center rounded-3xl shadow-2xl bg-white overflow-hidden">
-          <img 
-            src="https://lh3.googleusercontent.com/aida/ADBb0ugDJkWWFfXDeFB17qutG2dAu3CvBcphszQuCJD4_jeowx4tTXDM6YRxHpv_GqF5e-L98tMsYMx9Ja_5bwnD2VnnZiez6XEvyeBk0Dg0udwzl42kR5P5mM_xSgBPESxZTGlzxRdYGCClKeMXhvfhWnpOhZjiUKdMx7LV89m2BUYmknlwC5GV3mJVZXMXtHU_Ep66hf9VXkNYZKTxefyDJrMCLRwd6Q6o16ne55QJFFgYViU2sp7fniOQSMi8wFaA6NLp17n-enw72Q" 
-            alt="Logo"
-            className="w-full h-full object-cover"
-            referrerPolicy="no-referrer"
-          />
+        <div className="mb-6">
+          <Logo size="md" />
         </div>
         <h1 className="text-3xl font-extrabold tracking-tighter text-on-surface mb-2">3Dproduções</h1>
         <p className="text-on-surface-variant text-sm tracking-wide">O Ateliê Digital</p>
@@ -1028,13 +1032,8 @@ const ProfileView = ({
       className="pt-24 pb-32 px-6 max-w-2xl mx-auto"
     >
       <section className="flex flex-col items-center text-center mb-12">
-        <div className="w-24 h-24 rounded-full glass-card flex items-center justify-center mb-6 border-4 border-white/60 shadow-sm overflow-hidden">
-          <img 
-            src="https://lh3.googleusercontent.com/aida/ADBb0ugDJkWWFfXDeFB17qutG2dAu3CvBcphszQuCJD4_jeowx4tTXDM6YRxHpv_GqF5e-L98tMsYMx9Ja_5bwnD2VnnZiez6XEvyeBk0Dg0udwzl42kR5P5mM_xSgBPESxZTGlzxRdYGCClKeMXhvfhWnpOhZjiUKdMx7LV89m2BUYmknlwC5GV3mJVZXMXtHU_Ep66hf9VXkNYZKTxefyDJrMCLRwd6Q6o16ne55QJFFgYViU2sp7fniOQSMi8wFaA6NLp17n-enw72Q" 
-            alt="Profile"
-            className="w-full h-full object-cover"
-            referrerPolicy="no-referrer"
-          />
+        <div className="mb-6">
+          <Logo size="lg" />
         </div>
         <h2 className="text-3xl font-black tracking-tight text-on-surface mb-2 font-headline" style={{ textShadow: '1px 1px 0px #c3c5d9', letterSpacing: '-0.02em' }}>
           3Dproduções
