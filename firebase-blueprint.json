@@ -1,0 +1,26 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "A 3D printed product for sale.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "imageUrl": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "rating": { "type": "number" },
+        "reviewCount": { "type": "number" }
+      },
+      "required": ["name", "price", "imageUrl", "category"]
+    }
+  },
+  "firestore": {
+    "products": {
+      "schema": "Product",
+      "description": "Collection of products available in the shop."
+    }
+  }
+}

@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (request.auth.token.email == "jose.festas@gmail.com" && request.auth.token.email_verified == true);
+    }
+
+    // Products Collection
+    match /products/{productId} {
+      // Anyone can read products
+      allow read: if true;
+      // Only admin can create, update, or delete products
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Users Collection (for profile data if needed)
+    match /users/{userId} {
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+    }
+  }
+}

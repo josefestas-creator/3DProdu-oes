@@ -40,6 +40,19 @@ import {
 } from 'lucide-react';
 import { Product, ViewState, CartItem } from './types';
 import { PRODUCTS, REVIEWS } from './constants';
+import { 
+  collection, 
+  getDocs, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  onSnapshot,
+  query,
+  orderBy,
+  setDoc,
+  getDocFromServer
+} from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { 
   signInWithEmailAndPassword, 
@@ -56,7 +69,7 @@ const WHATSAPP_MESSAGE = encodeURIComponent("Olá! Gostaria de saber mais sobre 
 const WHATSAPP_LINK = `https://wa.me/351${CONTACT_NUMBER}?text=${WHATSAPP_MESSAGE}`;
 
 // --- Utils ---
-const compressImage = (base64Str: string, maxWidth = 600, maxHeight = 600, quality = 0.5): Promise<string> => {
+const compressImage = (base64Str: string, maxWidth = 500, maxHeight = 500, quality = 0.4): Promise<string> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.src = base64Str;
@@ -1185,31 +1198,45 @@ const AdminView = ({
     setIsAdding(false);
   };
 
-  const handleSave = () => {
-    if (!formData.name || formData.price <= 0) {
-      setStatusMessage("Por favor, preencha o nome e um preço válido.");
+  const handleSave = async () => {
+    console.log("Iniciando handleSave. editingId:", editingId);
+    if (!formData.name) {
+      console.warn("Nome ausente.");
+      setStatusMessage("Por favor, preencha o nome da peça.");
       setTimeout(() => setStatusMessage(null), 3000);
       return;
     }
 
-    if (editingId) {
-      onUpdateProduct({ ...formData, id: editingId } as Product);
-      setEditingId(null);
-      setStatusMessage("Peça atualizada com sucesso!");
-    } else {
-      onAddProduct(formData);
-      setIsAdding(false);
-      setStatusMessage("Nova peça adicionada com sucesso!");
+    setIsUploading(true);
+    try {
+      if (editingId) {
+        console.log("Atualizando produto:", editingId);
+        await onUpdateProduct({ ...formData, id: editingId } as Product);
+        setEditingId(null);
+        setStatusMessage("Peça atualizada com sucesso!");
+      } else {
+        console.log("Adicionando novo produto");
+        await onAddProduct(formData);
+        setIsAdding(false);
+        setStatusMessage("Nova peça adicionada com sucesso!");
+      }
+
+      setFormData({
+        name: '',
+        price: 0,
+        imageUrl: '',
+        category: '',
+        description: '',
+        rating: 5,
+        reviewCount: 0
+      });
+    } catch (error) {
+      console.error("Erro ao salvar produto:", error);
+      setStatusMessage("Erro ao salvar. Verifique o console ou o limite de espaço.");
+    } finally {
+      setIsUploading(false);
     }
-    setFormData({
-      name: '',
-      price: 0,
-      imageUrl: '',
-      category: '',
-      description: '',
-      rating: 5,
-      reviewCount: 0
-    });
+
     setTimeout(() => setStatusMessage(null), 3000);
   };
 
@@ -1515,9 +1542,78 @@ export default function App() {
   });
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [products, setProducts] = useState<Product[]>(() => {
-    const saved = localStorage.getItem('3dproducoes_products');
-    return saved ? JSON.parse(saved) : PRODUCTS;
+    try {
+      const saved = localStorage.getItem('3dproducoes_products');
+      return saved ? JSON.parse(saved) : PRODUCTS;
+    } catch (e) {
+      console.error("Erro ao carregar produtos do localStorage:", e);
+      return PRODUCTS;
+    }
   });
+
+  // Firestore Products Sync
+  useEffect(() => {
+    if (!db) {
+      console.log("Firestore: Banco de dados não disponível. Usando apenas localStorage.");
+      return;
+    }
+
+    console.log("Firestore: Iniciando sincronização de produtos...");
+    const q = query(collection(db, 'products'), orderBy('name'));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const firestoreProducts: Product[] = [];
+      snapshot.forEach((doc) => {
+        firestoreProducts.push({ id: doc.id, ...doc.data() } as Product);
+      });
+      
+      if (firestoreProducts.length > 0) {
+        console.log("Firestore: Produtos carregados com sucesso.");
+        setProducts(firestoreProducts);
+      } else {
+        console.log("Firestore: Nenhum produto encontrado no banco. Usando locais.");
+      }
+    }, (error) => {
+      console.error("Firestore: Erro na sincronização:", error);
+    });
+
+    return () => unsubscribe();
+  }, [db]);
+
+  // Migration to Firestore (only for admin)
+  useEffect(() => {
+    const migrateToFirestore = async () => {
+      if (!db || !isAdmin || products.length === 0) return;
+      
+      try {
+        // Check if we already migrated
+        const migrated = localStorage.getItem('3dproducoes_migrated_to_firestore');
+        if (migrated === 'true') return;
+
+        console.log("Firestore: Iniciando migração de produtos locais para o banco...");
+        // Get existing products from Firestore to avoid duplicates
+        const snapshot = await getDocs(collection(db, 'products'));
+        if (snapshot.size > 0) {
+          console.log("Firestore: Banco já contém produtos. Pulando migração automática.");
+          localStorage.setItem('3dproducoes_migrated_to_firestore', 'true');
+          return;
+        }
+
+        for (const product of products) {
+          const { id, ...data } = product;
+          await addDoc(collection(db, 'products'), data);
+        }
+        localStorage.setItem('3dproducoes_migrated_to_firestore', 'true');
+        console.log("Firestore: Migração concluída.");
+      } catch (error) {
+        console.error("Firestore: Erro na migração:", error);
+      }
+    };
+
+    if (isAdmin) {
+      migrateToFirestore();
+    }
+  }, [db, isAdmin, products]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [modal, setModal] = useState<{ show: boolean; title: string; message: string; onConfirm?: () => void; type: 'confirm' | 'alert' }>({
@@ -1601,7 +1697,12 @@ export default function App() {
     } catch (e) {
       console.error("Erro ao salvar produtos no localStorage:", e);
       if (e instanceof Error && e.name === 'QuotaExceededError') {
-        alert("O limite de armazenamento local foi excedido. Tente remover alguns produtos ou usar imagens menores.");
+        setModal({
+          show: true,
+          title: "Limite de Armazenamento",
+          message: "O limite de armazenamento local foi excedido. Tente remover alguns produtos ou usar imagens menores (menos fotografias).",
+          type: 'alert'
+        });
       }
     }
   }, [products]);
@@ -1923,22 +2024,63 @@ export default function App() {
   };
 
   const addProduct = async (newProduct: Omit<Product, 'id'>) => {
-    const productWithId = { ...newProduct, id: Date.now().toString() };
-    setProducts(prev => [productWithId, ...prev]);
+    if (db && isAdmin) {
+      try {
+        console.log("Firestore: Adicionando produto...");
+        await addDoc(collection(db, 'products'), newProduct);
+      } catch (error) {
+        console.error("Firestore: Erro ao adicionar produto:", error);
+        // Fallback to local
+        const productWithId = { ...newProduct, id: Date.now().toString() };
+        setProducts(prev => [productWithId, ...prev]);
+      }
+    } else {
+      const productWithId = { ...newProduct, id: Date.now().toString() };
+      setProducts(prev => [productWithId, ...prev]);
+    }
   };
 
   const updateProduct = async (updatedProduct: Product) => {
-    setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
+    if (db && isAdmin) {
+      try {
+        console.log("Firestore: Atualizando produto:", updatedProduct.id);
+        const { id, ...data } = updatedProduct;
+        const productRef = doc(db, 'products', id);
+        await updateDoc(productRef, data as any);
+      } catch (error) {
+        console.error("Firestore: Erro ao atualizar produto:", error);
+        // Fallback to local
+        setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
+      }
+    } else {
+      setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
+    }
+    
+    // Update selected product if it's the one being edited
+    if (selectedProduct && selectedProduct.id === updatedProduct.id) {
+      setSelectedProduct(updatedProduct);
+    }
   };
 
   const deleteProduct = (id: string) => {
     setModal({
       show: true,
       title: "Eliminar Peça",
-      message: "Tem a certeza que deseja eliminar esta peça localmente?",
+      message: "Tem a certeza que deseja eliminar esta peça?",
       type: 'confirm',
-      onConfirm: () => {
-        setProducts(prev => prev.filter(p => p.id !== id));
+      onConfirm: async () => {
+        if (db && isAdmin) {
+          try {
+            console.log("Firestore: Deletando produto:", id);
+            await deleteDoc(doc(db, 'products', id));
+          } catch (error) {
+            console.error("Firestore: Erro ao deletar produto:", error);
+            // Fallback to local
+            setProducts(prev => prev.filter(p => p.id !== id));
+          }
+        } else {
+          setProducts(prev => prev.filter(p => p.id !== id));
+        }
         setModal(prev => ({ ...prev, show: false }));
       }
     });
