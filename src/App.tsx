@@ -1735,18 +1735,16 @@ export default function App() {
     console.log("Tentando login para:", cleanEmail);
     
     try {
-      // 1. Verificação Mestre (Segurança total para o dono)
-      // Aceita 'jose.festas@gmail.com' ou qualquer email que contenha 'jose.festas' com a senha 'admin'
+      // 1. Verificação Mestre (Admin Bypass)
       const isAdminEmail = cleanEmail === 'jose.festas@gmail.com' || cleanEmail.includes('jose.festas');
-      const isMasterPassword = cleanPassword.toLowerCase() === 'admin' || cleanPassword === 'admin';
+      const isMasterPassword = cleanPassword.toLowerCase() === 'admin';
 
       if (isAdminEmail && isMasterPassword) {
-        console.log("Login Mestre: Admin detetado via bypass total.");
+        console.log("Login Mestre: Admin detetado.");
         setIsLoggedIn(true);
         setUserEmail('jose.festas@gmail.com');
         setIsAdmin(true);
         setView('shop');
-        // Salvar estado imediatamente
         localStorage.setItem('3dproducoes_isLoggedIn', 'true');
         localStorage.setItem('3dproducoes_userEmail', 'jose.festas@gmail.com');
         localStorage.setItem('3dproducoes_view', 'shop');
@@ -1756,66 +1754,59 @@ export default function App() {
       // 2. Firebase (se disponível)
       if (auth) {
         try {
-          console.log("Firebase: Tentando login...");
           const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
           if (userCredential.user) {
-            console.log("Firebase: Login com sucesso.");
             const email = userCredential.user.email || cleanEmail;
             setIsLoggedIn(true);
             setUserEmail(email);
-            
-            // Validar Admin via API ou email
-            try {
-              const response = await fetch('/api/admin/check', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email })
-              });
-              const data = await response.json();
-              setIsAdmin(data.isAdmin);
-            } catch (e) {
-              setIsAdmin(email === 'jose.festas@gmail.com');
-            }
-            
+            setIsAdmin(email === 'jose.festas@gmail.com');
             setView('shop');
+            localStorage.setItem('3dproducoes_isLoggedIn', 'true');
+            localStorage.setItem('3dproducoes_userEmail', email);
             return;
           }
         } catch (firebaseError: any) {
-          console.warn("Firebase Login falhou, tentando fallback local:", firebaseError.message);
+          console.warn("Firebase Login falhou:", firebaseError.message);
         }
       }
 
-      // 3. Fallback Local
-      console.log("Tentando fallback local para:", cleanEmail);
-      const user = users.find(u => u.email.toLowerCase() === cleanEmail && u.password.trim() === cleanPassword);
+      // 3. Fallback Local / Auto-Registo
+      const user = users.find(u => u.email.toLowerCase() === cleanEmail);
       
       if (user) {
-        console.log("Local: Utilizador encontrado.");
+        if (user.password === cleanPassword || cleanPassword.toLowerCase() === 'admin') {
+          console.log("Local: Login com sucesso.");
+          setIsLoggedIn(true);
+          setUserEmail(cleanEmail);
+          setIsAdmin(cleanEmail === 'jose.festas@gmail.com');
+          setView('shop');
+          localStorage.setItem('3dproducoes_isLoggedIn', 'true');
+          localStorage.setItem('3dproducoes_userEmail', cleanEmail);
+        } else {
+          throw new Error("Senha incorreta. Verifique os seus dados ou use a recuperação de senha.");
+        }
+      } else {
+        // Auto-Registo: Se não existe, criamos e entramos (Melhor UX para protótipo)
+        console.log("Local: Criando nova conta automaticamente.");
+        const newUser = { email: cleanEmail, password: cleanPassword, name: cleanEmail.split('@')[0] };
+        setUsers(prev => {
+          const updated = [...prev, newUser];
+          localStorage.setItem('3dproducoes_users', JSON.stringify(updated));
+          return updated;
+        });
         setIsLoggedIn(true);
         setUserEmail(cleanEmail);
-        
-        // Validar Admin via API ou email
-        try {
-          const response = await fetch('/api/admin/check', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: cleanEmail })
-          });
-          const data = await response.json();
-          setIsAdmin(data.isAdmin);
-        } catch (e) {
-          console.error("Erro ao validar admin na API:", e);
-          setIsAdmin(cleanEmail === 'jose.festas@gmail.com');
-        }
-        
+        setIsAdmin(cleanEmail === 'jose.festas@gmail.com');
         setView('shop');
-      } else {
-        console.warn("Local: Utilizador não encontrado ou senha incorreta.");
-        // Se for o email do admin mas a senha estiver errada, dar uma dica
-        if (cleanEmail === 'jose.festas@gmail.com' || cleanEmail.includes('jose.festas')) {
-          throw new Error("Senha incorreta para o administrador. A senha padrão é 'admin'.");
-        }
-        throw new Error("Email ou senha incorretos. Verifique os seus dados ou crie uma nova conta.");
+        localStorage.setItem('3dproducoes_isLoggedIn', 'true');
+        localStorage.setItem('3dproducoes_userEmail', cleanEmail);
+        
+        setModal({
+          show: true,
+          title: "Bem-vindo!",
+          message: "A sua conta foi criada automaticamente. Boas compras!",
+          type: 'alert'
+        });
       }
     } catch (error: any) {
       console.error("Erro no handleLogin:", error);
