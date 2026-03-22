@@ -1866,32 +1866,45 @@ export default function App() {
     try {
       const provider = new GoogleAuthProvider();
       if (!auth) throw new Error("Firebase não inicializado.");
+      
+      console.log("Iniciando Google Login...");
       const result = await signInWithPopup(auth, provider);
+      
       if (result.user) {
         const email = result.user.email || '';
+        console.log("Google Login sucesso:", email);
+        
         if (email === 'jose.festas@gmail.com') {
           setIsLoggedIn(true);
           setUserEmail(email);
           setIsAdmin(true);
           setView('shop');
+          localStorage.setItem('3dproducoes_isLoggedIn', 'true');
+          localStorage.setItem('3dproducoes_userEmail', email);
         } else {
-          // Deslogar se não for o administrador, pois o botão Google é restrito
           await auth.signOut();
-          throw new Error("O login com Google está restrito ao administrador.");
+          throw new Error("O login com Google está restrito ao administrador (jose.festas@gmail.com).");
         }
       }
     } catch (error: any) {
-      console.error("Erro no Google Login:", error);
+      console.error("Erro detalhado no Google Login:", error);
       let message = "Ocorreu um erro ao entrar com o Google.";
+      
       if (error.code === 'auth/api-key-not-valid') {
-        message = "A chave API do Firebase é inválida. Por favor, configure o Firebase corretamente nas definições.";
+        message = "A chave API do Firebase é inválida. Verifique as configurações no Console do Firebase.";
+      } else if (error.code === 'auth/invalid-credential') {
+        message = "Erro de Credenciais (auth/invalid-credential). Isto pode dever-se a uma configuração incorreta no Firebase ou ao domínio não estar autorizado. \n\nSUGESTÃO: Tente o Login Manual com Email: jose.festas@gmail.com e Senha: admin";
+      } else if (error.code === 'auth/popup-blocked') {
+        message = "O popup de login foi bloqueado pelo seu navegador. Por favor, permita popups para este site.";
+      } else if (error.code === 'auth/unauthorized-domain') {
+        message = "Este domínio não está autorizado no Firebase. Adicione '" + window.location.hostname + "' aos domínios autorizados no Console do Firebase.";
       } else if (error.message) {
         message = error.message;
       }
       
       setModal({
         show: true,
-        title: "Erro Google",
+        title: "Erro de Autenticação",
         message: message,
         type: 'alert'
       });
@@ -1936,6 +1949,9 @@ export default function App() {
           }
         } catch (firebaseError: any) {
           console.warn("Firebase Login falhou:", firebaseError.message);
+          if (firebaseError.code === 'auth/invalid-credential') {
+            console.log("DICA: Se você é o administrador, use a senha 'admin' para o login mestre.");
+          }
         }
       }
 
@@ -2092,7 +2108,7 @@ export default function App() {
   };
 
   const addProduct = async (newProduct: Omit<Product, 'id'>) => {
-    if (db && isAdmin) {
+    if (db && isAdmin && auth.currentUser) {
       try {
         console.log("Firestore: Adicionando produto...");
         await addDoc(collection(db, 'products'), newProduct);
@@ -2109,12 +2125,14 @@ export default function App() {
   };
 
   const updateProduct = async (updatedProduct: Product) => {
-    if (db && isAdmin) {
+    if (db && isAdmin && auth.currentUser) {
       try {
         console.log("Firestore: Atualizando produto:", updatedProduct.id);
         const { id, ...data } = updatedProduct;
         const productRef = doc(db, 'products', id);
-        await updateDoc(productRef, data as any);
+        // Usar setDoc com merge: true para evitar erro de "No document to update"
+        // Isto cria o documento se não existir, ou atualiza se existir.
+        await setDoc(productRef, data as any, { merge: true });
       } catch (error) {
         handleFirestoreError(error, OperationType.UPDATE, `products/${updatedProduct.id}`);
         // Fallback to local
@@ -2137,7 +2155,7 @@ export default function App() {
       message: "Tem a certeza que deseja eliminar esta peça?",
       type: 'confirm',
       onConfirm: async () => {
-        if (db && isAdmin) {
+        if (db && isAdmin && auth.currentUser) {
           try {
             console.log("Firestore: Deletando produto:", id);
             await deleteDoc(doc(db, 'products', id));
