@@ -79,6 +79,58 @@ async function testConnection() {
 }
 testConnection();
 
+// --- Firestore Error Handling ---
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
 // --- Constants ---
 const CONTACT_NUMBER = "913300013";
 const WHATSAPP_MESSAGE = encodeURIComponent("Olá! Gostaria de saber mais sobre as vossas peças 3D.");
@@ -1590,7 +1642,7 @@ export default function App() {
         console.log("Firestore: Nenhum produto encontrado no banco. Usando locais.");
       }
     }, (error) => {
-      console.error("Firestore: Erro na sincronização:", error);
+      handleFirestoreError(error, OperationType.LIST, 'products');
     });
 
     return () => unsubscribe();
@@ -1608,8 +1660,8 @@ export default function App() {
 
         console.log("Firestore: Iniciando migração de produtos locais para o banco...");
         // Get existing products from Firestore to avoid duplicates
-        const snapshot = await getDocs(collection(db, 'products'));
-        if (snapshot.size > 0) {
+        const snapshot = await getDocs(collection(db, 'products')).catch(err => handleFirestoreError(err, OperationType.LIST, 'products'));
+        if (snapshot && snapshot.size > 0) {
           console.log("Firestore: Banco já contém produtos. Pulando migração automática.");
           localStorage.setItem('3dproducoes_migrated_to_firestore', 'true');
           return;
@@ -1617,7 +1669,7 @@ export default function App() {
 
         for (const product of products) {
           const { id, ...data } = product;
-          await addDoc(collection(db, 'products'), data);
+          await addDoc(collection(db, 'products'), data).catch(err => handleFirestoreError(err, OperationType.CREATE, 'products'));
         }
         localStorage.setItem('3dproducoes_migrated_to_firestore', 'true');
         console.log("Firestore: Migração concluída.");
@@ -2045,7 +2097,7 @@ export default function App() {
         console.log("Firestore: Adicionando produto...");
         await addDoc(collection(db, 'products'), newProduct);
       } catch (error) {
-        console.error("Firestore: Erro ao adicionar produto:", error);
+        handleFirestoreError(error, OperationType.CREATE, 'products');
         // Fallback to local
         const productWithId = { ...newProduct, id: Date.now().toString() };
         setProducts(prev => [productWithId, ...prev]);
@@ -2064,7 +2116,7 @@ export default function App() {
         const productRef = doc(db, 'products', id);
         await updateDoc(productRef, data as any);
       } catch (error) {
-        console.error("Firestore: Erro ao atualizar produto:", error);
+        handleFirestoreError(error, OperationType.UPDATE, `products/${updatedProduct.id}`);
         // Fallback to local
         setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
       }
@@ -2090,7 +2142,7 @@ export default function App() {
             console.log("Firestore: Deletando produto:", id);
             await deleteDoc(doc(db, 'products', id));
           } catch (error) {
-            console.error("Firestore: Erro ao deletar produto:", error);
+            handleFirestoreError(error, OperationType.DELETE, `products/${id}`);
             // Fallback to local
             setProducts(prev => prev.filter(p => p.id !== id));
           }
