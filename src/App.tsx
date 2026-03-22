@@ -63,6 +63,22 @@ import {
   signInWithPopup
 } from 'firebase/auth';
 
+// Test Firestore connection
+async function testConnection() {
+  if (!db) return;
+  try {
+    console.log("Firestore: Testando conexão...");
+    await getDocFromServer(doc(db, 'test', 'connection'));
+    console.log("Firestore: Conexão verificada com sucesso.");
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error("Firestore: Erro de configuração. O cliente está offline.");
+    }
+    // Skip logging for other errors, as this is simply a connection test.
+  }
+}
+testConnection();
+
 // --- Constants ---
 const CONTACT_NUMBER = "913300013";
 const WHATSAPP_MESSAGE = encodeURIComponent("Olá! Gostaria de saber mais sobre as vossas peças 3D.");
