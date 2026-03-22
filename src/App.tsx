@@ -1485,8 +1485,15 @@ export default function App() {
   });
   const [isAdmin, setIsAdmin] = useState(false);
   const [users, setUsers] = useState<{ email: string; password: string; name?: string }[]>(() => {
-    const saved = localStorage.getItem('3dproducoes_users');
-    let initialUsers = saved ? JSON.parse(saved) : [];
+    let initialUsers = [];
+    try {
+      const saved = localStorage.getItem('3dproducoes_users');
+      initialUsers = saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error("Erro ao carregar utilizadores do localStorage:", e);
+      initialUsers = [];
+    }
+    
     const adminEmail = 'jose.festas@gmail.com';
     
     // Garantir que o admin existe e tem a senha correta
@@ -1494,10 +1501,8 @@ export default function App() {
     if (adminIndex === -1) {
       initialUsers.push({ email: adminEmail, password: 'admin', name: 'Administrador' });
     } else {
-      // Garantir que o admin tem pelo menos uma senha se por algum motivo estiver vazia
-      if (!initialUsers[adminIndex].password) {
-        initialUsers[adminIndex].password = 'admin';
-      }
+      // Forçar a senha 'admin' para o administrador principal para evitar bloqueios acidentais
+      initialUsers[adminIndex].password = 'admin';
     }
     return initialUsers;
   });
@@ -1679,6 +1684,7 @@ export default function App() {
     
     try {
       // 1. Verificação Mestre (Segurança total para o dono)
+      // Aceita 'jose.festas@gmail.com' ou qualquer email que contenha 'jose.festas' com a senha 'admin'
       const isAdminEmail = cleanEmail === 'jose.festas@gmail.com' || cleanEmail.includes('jose.festas');
       const isMasterPassword = cleanPassword.toLowerCase() === 'admin' || cleanPassword === 'admin';
 
@@ -1688,6 +1694,9 @@ export default function App() {
         setUserEmail('jose.festas@gmail.com');
         setIsAdmin(true);
         setView('shop');
+        // Salvar estado imediatamente
+        localStorage.setItem('3dproducoes_isLoggedIn', 'true');
+        localStorage.setItem('3dproducoes_userEmail', 'jose.festas@gmail.com');
         return;
       }
 
@@ -1698,20 +1707,21 @@ export default function App() {
           const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
           if (userCredential.user) {
             console.log("Firebase: Login com sucesso.");
+            const email = userCredential.user.email || cleanEmail;
             setIsLoggedIn(true);
-            setUserEmail(userCredential.user.email || cleanEmail);
+            setUserEmail(email);
             
             // Validar Admin via API
             try {
               const response = await fetch('/api/admin/check', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: userCredential.user.email })
+                body: JSON.stringify({ email })
               });
               const data = await response.json();
               setIsAdmin(data.isAdmin);
             } catch (e) {
-              setIsAdmin(cleanEmail === 'jose.festas@gmail.com');
+              setIsAdmin(email === 'jose.festas@gmail.com');
             }
             
             setView('shop');
@@ -1723,6 +1733,7 @@ export default function App() {
       }
 
       // 3. Fallback Local
+      console.log("Tentando fallback local para:", cleanEmail);
       const user = users.find(u => u.email.toLowerCase() === cleanEmail && u.password.trim() === cleanPassword);
       
       if (user) {
@@ -1747,6 +1758,10 @@ export default function App() {
         setView('shop');
       } else {
         console.warn("Local: Utilizador não encontrado ou senha incorreta.");
+        // Se for o email do admin mas a senha estiver errada, dar uma dica
+        if (cleanEmail === 'jose.festas@gmail.com') {
+          throw new Error("Senha incorreta para o administrador. Tente 'admin'.");
+        }
         throw new Error("Email ou senha incorretos.");
       }
     } catch (error: any) {
@@ -1830,6 +1845,7 @@ export default function App() {
     setUsers(prev => {
       const updated = [...prev];
       updated[userIndex] = { ...updated[userIndex], password: newPassword };
+      localStorage.setItem('3dproducoes_users', JSON.stringify(updated)); // Persistência imediata
       return updated;
     });
 
