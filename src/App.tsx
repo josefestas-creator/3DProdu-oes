@@ -824,16 +824,7 @@ const CartView = ({
 
 const ProductDetailView = ({ product, onAddToCart, onBack }: { product: Product; onAddToCart: (p: Product) => void; onBack: () => void }) => {
   const [isZoomed, setIsZoomed] = useState(false);
-  const [is360Mode, setIs360Mode] = useState(false);
-  const [rotation, setRotation] = useState(0);
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!is360Mode) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const percent = x / rect.width;
-    setRotation(percent * 360);
-  };
+  const [showLightbox, setShowLightbox] = useState(false);
 
   return (
     <motion.div 
@@ -842,14 +833,41 @@ const ProductDetailView = ({ product, onAddToCart, onBack }: { product: Product;
       exit={{ opacity: 0, y: 20 }}
       className="pt-24 pb-32 px-6 max-w-2xl mx-auto"
     >
+      <AnimatePresence>
+        {showLightbox && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4"
+            onClick={() => setShowLightbox(false)}
+          >
+            <motion.button 
+              className="absolute top-6 right-6 w-12 h-12 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center transition-colors z-10"
+              onClick={() => setShowLightbox(false)}
+            >
+              <X size={24} />
+            </motion.button>
+            <motion.img 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              src={product.imageUrl} 
+              alt={product.name} 
+              className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+              referrerPolicy="no-referrer"
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="relative aspect-square glass-card rounded-[2.5rem] overflow-hidden mb-8 group">
         <motion.div 
           className="w-full h-full cursor-pointer relative"
-          onMouseMove={handleMouseMove}
-          onClick={() => !is360Mode && setIsZoomed(!isZoomed)}
+          onClick={() => setShowLightbox(true)}
           animate={{ 
-            scale: isZoomed ? 1.5 : 1,
-            rotateY: is360Mode ? rotation : 0
+            scale: isZoomed ? 1.5 : 1
           }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         >
@@ -863,24 +881,12 @@ const ProductDetailView = ({ product, onAddToCart, onBack }: { product: Product;
         
         <div className="absolute top-4 right-4 flex flex-col gap-2">
           <button 
-            onClick={(e) => { e.stopPropagation(); setIsZoomed(!isZoomed); setIs360Mode(false); }}
-            className={`w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center shadow-lg transition-all ${isZoomed ? 'bg-primary text-white' : 'bg-white/80 text-primary'}`}
+            onClick={(e) => { e.stopPropagation(); setShowLightbox(true); }}
+            className={`w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center shadow-lg transition-all bg-white/80 text-primary hover:bg-primary hover:text-white`}
           >
             <Maximize2 size={20} />
           </button>
-          <button 
-            onClick={(e) => { e.stopPropagation(); setIs360Mode(!is360Mode); setIsZoomed(false); }}
-            className={`w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center shadow-lg transition-all ${is360Mode ? 'bg-primary text-white' : 'bg-white/80 text-primary'}`}
-          >
-            <RotateCw size={20} />
-          </button>
         </div>
-
-        {is360Mode && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur-md px-4 py-2 rounded-full text-white text-[10px] font-bold uppercase tracking-widest">
-            Arraste para rodar 360°
-          </div>
-        )}
       </div>
 
       <div className="space-y-6">
@@ -1137,6 +1143,7 @@ const AdminView = ({
   onUpdateProduct, 
   onDeleteProduct, 
   onResetProducts,
+  onReorderProducts,
   onBack
 }: { 
   products: Product[]; 
@@ -1144,6 +1151,7 @@ const AdminView = ({
   onUpdateProduct: (p: Product) => void; 
   onDeleteProduct: (id: string) => void;
   onResetProducts: () => void;
+  onReorderProducts: (products: Product[]) => void;
   onBack: () => void;
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -1198,6 +1206,15 @@ const AdminView = ({
       reviewCount: 0
     });
     setTimeout(() => setStatusMessage(null), 3000);
+  };
+
+  const handleMove = (index: number, direction: 'up' | 'down') => {
+    const newProducts = [...products];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= newProducts.length) return;
+    
+    [newProducts[index], newProducts[targetIndex]] = [newProducts[targetIndex], newProducts[index]];
+    onReorderProducts(newProducts);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1363,8 +1380,24 @@ const AdminView = ({
       )}
 
       <div className="space-y-4">
-        {products.map(product => (
+        {products.map((product, index) => (
           <div key={product.id} className="glass-card p-4 rounded-2xl flex gap-4 items-center">
+            <div className="flex flex-col gap-1">
+              <button 
+                onClick={() => handleMove(index, 'up')}
+                disabled={index === 0}
+                className={`p-1 rounded-lg transition-colors ${index === 0 ? 'text-outline/20' : 'text-primary hover:bg-primary/5'}`}
+              >
+                <ChevronLeft size={20} className="rotate-90" />
+              </button>
+              <button 
+                onClick={() => handleMove(index, 'down')}
+                disabled={index === products.length - 1}
+                className={`p-1 rounded-lg transition-colors ${index === products.length - 1 ? 'text-outline/20' : 'text-primary hover:bg-primary/5'}`}
+              >
+                <ChevronLeft size={20} className="-rotate-90" />
+              </button>
+            </div>
             <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0">
               <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             </div>
@@ -1461,8 +1494,10 @@ export default function App() {
     if (adminIndex === -1) {
       initialUsers.push({ email: adminEmail, password: 'admin', name: 'Administrador' });
     } else {
-      // Forçar a senha 'admin' se for o admin padrão para evitar bloqueios
-      initialUsers[adminIndex].password = 'admin';
+      // Garantir que o admin tem pelo menos uma senha se por algum motivo estiver vazia
+      if (!initialUsers[adminIndex].password) {
+        initialUsers[adminIndex].password = 'admin';
+      }
     }
     return initialUsers;
   });
@@ -1643,25 +1678,11 @@ export default function App() {
     console.log("Tentando login para:", cleanEmail);
     
     try {
-      // Tentar Login com Firebase se configurado e inicializado
-      if (auth) {
-        try {
-          console.log("Firebase: Tentando login...");
-          await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
-          console.log("Firebase: Login com sucesso.");
-          setView('shop');
-          return; // Sucesso com Firebase
-        } catch (firebaseError: any) {
-          console.warn("Firebase Login falhou, tentando fallback local:", firebaseError.message);
-          // Se falhar no Firebase, tentamos o local (útil para o admin inicial)
-        }
-      }
+      // 1. Verificação Mestre (Segurança total para o dono)
+      const isAdminEmail = cleanEmail === 'jose.festas@gmail.com' || cleanEmail.includes('jose.festas');
+      const isMasterPassword = cleanPassword.toLowerCase() === 'admin' || cleanPassword === 'admin';
 
-      // Fallback local
-      const adminEmail = 'jose.festas@gmail.com';
-      
-      // Verificação mestre para o admin - Ultra Permissiva
-      if (cleanEmail.includes('jose.festas') && (cleanPassword.toLowerCase().startsWith('admin') || cleanPassword === 'admin')) {
+      if (isAdminEmail && isMasterPassword) {
         console.log("Login Mestre: Admin detetado via bypass total.");
         setIsLoggedIn(true);
         setUserEmail('jose.festas@gmail.com');
@@ -1670,9 +1691,40 @@ export default function App() {
         return;
       }
 
-      console.log(`Login debug: email='${cleanEmail}' (len:${cleanEmail.length}), pass='${cleanPassword}' (len:${cleanPassword.length})`);
-      console.log("Utilizadores locais disponíveis:", users.length);
+      // 2. Firebase (se disponível)
+      if (auth) {
+        try {
+          console.log("Firebase: Tentando login...");
+          const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+          if (userCredential.user) {
+            console.log("Firebase: Login com sucesso.");
+            setIsLoggedIn(true);
+            setUserEmail(userCredential.user.email || cleanEmail);
+            
+            // Validar Admin via API
+            try {
+              const response = await fetch('/api/admin/check', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: userCredential.user.email })
+              });
+              const data = await response.json();
+              setIsAdmin(data.isAdmin);
+            } catch (e) {
+              setIsAdmin(cleanEmail === 'jose.festas@gmail.com');
+            }
+            
+            setView('shop');
+            return;
+          }
+        } catch (firebaseError: any) {
+          console.warn("Firebase Login falhou, tentando fallback local:", firebaseError.message);
+        }
+      }
+
+      // 3. Fallback Local
       const user = users.find(u => u.email.toLowerCase() === cleanEmail && u.password.trim() === cleanPassword);
+      
       if (user) {
         console.log("Local: Utilizador encontrado.");
         setIsLoggedIn(true);
@@ -1716,9 +1768,14 @@ export default function App() {
     try {
       if (auth) {
         try {
-          await createUserWithEmailAndPassword(auth, cleanEmail, cleanPassword);
-          setView('shop');
-          return;
+          const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+          if (userCredential.user) {
+            setIsLoggedIn(true);
+            setUserEmail(userCredential.user.email || cleanEmail);
+            setIsAdmin(cleanEmail === 'jose.festas@gmail.com');
+            setView('shop');
+            return;
+          }
         } catch (firebaseError: any) {
           console.warn("Firebase Register falhou, tentando fallback local:", firebaseError.message);
         }
@@ -1730,7 +1787,11 @@ export default function App() {
       }
 
       const newUser = { name, email: cleanEmail, password: cleanPassword };
-      setUsers(prev => [...prev, newUser]);
+      setUsers(prev => {
+        const newUsers = [...prev, newUser];
+        localStorage.setItem('3dproducoes_users', JSON.stringify(newUsers)); // Forçar persistência imediata
+        return newUsers;
+      });
       setIsLoggedIn(true);
       setUserEmail(cleanEmail);
       setIsAdmin(cleanEmail === 'jose.festas@gmail.com');
@@ -1926,6 +1987,7 @@ export default function App() {
                   onUpdateProduct={updateProduct} 
                   onDeleteProduct={deleteProduct}
                   onResetProducts={resetProducts}
+                  onReorderProducts={setProducts}
                   onBack={() => setView('profile')}
                 />
               )}
