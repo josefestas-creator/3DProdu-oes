@@ -12,12 +12,16 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-// Só inicializa se a API Key estiver presente
+// Só inicializa se a API Key estiver presente e parecer válida
 let app;
 let auth: any = null;
 let db: any = null;
 
-if (firebaseConfig.apiKey && firebaseConfig.apiKey.trim() !== "") {
+const isValidKey = (key: string | undefined) => {
+  return key && key.trim() !== "" && key.length > 20 && !key.includes('TODO');
+};
+
+if (isValidKey(firebaseConfig.apiKey)) {
   console.log("Firebase: Tentando inicializar com a chave fornecida...");
   try {
     app = initializeApp(firebaseConfig);
@@ -28,7 +32,7 @@ if (firebaseConfig.apiKey && firebaseConfig.apiKey.trim() !== "") {
     console.error("Firebase: Erro ao inicializar:", error);
   }
 } else {
-  console.log("Firebase: Chave API não encontrada. Usando modo offline (fallback).");
+  console.log("Firebase: Chave API não encontrada ou inválida. Usando modo offline (fallback).");
 }
 
 export { auth, db };

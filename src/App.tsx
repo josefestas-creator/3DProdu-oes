@@ -45,7 +45,9 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signOut,
-  onAuthStateChanged
+  onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup
 } from 'firebase/auth';
 
 // --- Constants ---
@@ -54,7 +56,7 @@ const WHATSAPP_MESSAGE = encodeURIComponent("Olá! Gostaria de saber mais sobre 
 const WHATSAPP_LINK = `https://wa.me/351${CONTACT_NUMBER}?text=${WHATSAPP_MESSAGE}`;
 
 // --- Utils ---
-const compressImage = (base64Str: string, maxWidth = 800, maxHeight = 800, quality = 0.7): Promise<string> => {
+const compressImage = (base64Str: string, maxWidth = 600, maxHeight = 600, quality = 0.5): Promise<string> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.src = base64Str;
@@ -602,7 +604,12 @@ const RegisterView = ({ onRegister, onGoToLogin }: { onRegister: (name: string, 
   );
 };
 
-const LoginView = ({ onLogin, onGoToRegister, onGoToForgotPassword }: { onLogin: (email: string, password: string) => void; onGoToRegister: () => void; onGoToForgotPassword: () => void }) => {
+const LoginView = ({ onLogin, onGoToRegister, onGoToForgotPassword, onGoogleLogin }: { 
+  onLogin: (email: string, password: string) => void; 
+  onGoToRegister: () => void; 
+  onGoToForgotPassword: () => void;
+  onGoogleLogin: () => void;
+}) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -697,12 +704,21 @@ const LoginView = ({ onLogin, onGoToRegister, onGoToForgotPassword }: { onLogin:
             Entrar
           </button>
 
+          <div className="relative py-2">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-on-surface/10"></span>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-transparent px-2 text-on-surface-variant font-bold tracking-widest">Ou</span>
+            </div>
+          </div>
+
           <button 
-            onClick={() => onLogin('jose.festas@gmail.com', 'admin')}
-            className="w-full h-14 bg-surface-variant/50 text-primary font-black rounded-2xl border border-primary/20 hover:bg-primary/5 transition-all flex items-center justify-center gap-3 tracking-widest uppercase text-[10px]"
+            onClick={onGoogleLogin}
+            className="w-full h-14 bg-white text-on-surface font-bold rounded-2xl border border-on-surface/10 hover:bg-on-surface/5 transition-all flex items-center justify-center gap-3 tracking-widest uppercase text-[10px] shadow-sm"
           >
-            <Shield size={18} />
-            Entrar como Administrador
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
+            Entrar com Google
           </button>
         </div>
 
@@ -710,18 +726,6 @@ const LoginView = ({ onLogin, onGoToRegister, onGoToForgotPassword }: { onLogin:
           <p className="text-sm text-on-surface-variant">
             Novo por aqui? <button onClick={onGoToRegister} className="text-primary font-bold hover:underline ml-1">Criar conta</button>
           </p>
-          
-          <button 
-            onClick={() => {
-              if (window.confirm('Deseja limpar os dados locais e restaurar a aplicação?')) {
-                localStorage.clear();
-                window.location.reload();
-              }
-            }}
-            className="text-[9px] font-bold uppercase tracking-[0.2em] text-on-surface-variant/40 hover:text-red-500 transition-colors"
-          >
-            Reset App
-          </button>
         </div>
       </div>
     </motion.div>
@@ -1157,6 +1161,7 @@ const AdminView = ({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   
   useEffect(() => {
     if (isAdding || editingId) {
@@ -1220,16 +1225,21 @@ const AdminView = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setIsUploading(true);
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64 = reader.result as string;
         // Compress image before setting it to state
         try {
           const compressed = await compressImage(base64);
-          setFormData({ ...formData, imageUrl: compressed });
+          setFormData(prev => ({ ...prev, imageUrl: compressed }));
+          setStatusMessage("Imagem processada com sucesso!");
+          setTimeout(() => setStatusMessage(null), 2000);
         } catch (error) {
           console.error("Erro ao comprimir imagem:", error);
-          setFormData({ ...formData, imageUrl: base64 });
+          setFormData(prev => ({ ...prev, imageUrl: base64 }));
+        } finally {
+          setIsUploading(false);
         }
       };
       reader.readAsDataURL(file);
@@ -1245,19 +1255,6 @@ const AdminView = ({
       <div className="mb-8 flex items-center justify-between">
         <h2 className="text-3xl font-black tracking-tight text-on-surface font-headline">Painel Admin</h2>
         <div className="flex gap-2 items-center">
-          <button 
-            onClick={() => {
-              if (window.confirm('Tem a certeza que deseja limpar todos os dados da aplicação? Isto irá remover todos os utilizadores e produtos personalizados.')) {
-                localStorage.clear();
-                window.location.reload();
-              }
-            }}
-            className="px-3 py-1.5 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500/20 transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest border border-red-500/20"
-            title="Limpar todos os dados"
-          >
-            <Trash2 size={14} />
-            Reset App
-          </button>
           <button 
             onClick={() => {
               onResetProducts();
@@ -1356,10 +1353,20 @@ const AdminView = ({
           <div className="flex gap-3">
             <button 
               onClick={handleSave}
-              className="flex-grow h-12 signature-gradient text-white font-bold rounded-xl flex items-center justify-center gap-2"
+              disabled={isUploading}
+              className={`flex-grow h-12 signature-gradient text-white font-bold rounded-xl flex items-center justify-center gap-2 ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              <Save size={18} />
-              Guardar
+              {isUploading ? (
+                <>
+                  <RotateCw size={18} className="animate-spin" />
+                  A processar...
+                </>
+              ) : (
+                <>
+                  <Save size={18} />
+                  Guardar
+                </>
+              )}
             </button>
             <button 
               onClick={() => { setEditingId(null); setIsAdding(false); }}
@@ -1496,7 +1503,7 @@ export default function App() {
     
     const adminEmail = 'jose.festas@gmail.com';
     
-    // Garantir que o admin existe e tem a senha correta
+    // Garantir que o admin existe no sistema local
     const adminIndex = initialUsers.findIndex((u: any) => u.email.toLowerCase() === adminEmail);
     if (adminIndex === -1) {
       initialUsers.push({ email: adminEmail, password: 'admin', name: 'Administrador' });
@@ -1676,6 +1683,51 @@ export default function App() {
     setMbWayPhone('');
   };
 
+  const handleGoogleLogin = async () => {
+    if (!auth) {
+      setModal({
+        show: true,
+        title: "Firebase não configurado",
+        message: "O login com Google requer a configuração do Firebase. Por favor, configure o Firebase nas definições.",
+        type: 'alert'
+      });
+      return;
+    }
+
+    try {
+      const provider = new GoogleAuthProvider();
+      if (!auth) throw new Error("Firebase não inicializado.");
+      const result = await signInWithPopup(auth, provider);
+      if (result.user) {
+        const email = result.user.email || '';
+        if (email === 'jose.festas@gmail.com') {
+          setIsLoggedIn(true);
+          setUserEmail(email);
+          setIsAdmin(true);
+          setView('shop');
+        } else {
+          // Deslogar se não for o administrador, pois o botão Google é restrito
+          await auth.signOut();
+          throw new Error("O login com Google está restrito ao administrador.");
+        }
+      }
+    } catch (error: any) {
+      console.error("Erro no Google Login:", error);
+      let message = "Ocorreu um erro ao entrar com o Google.";
+      if (error.code === 'auth/api-key-not-valid') {
+        message = "A chave API do Firebase é inválida. Por favor, configure o Firebase corretamente nas definições.";
+      } else if (error.message) {
+        message = error.message;
+      }
+      
+      setModal({
+        show: true,
+        title: "Erro Google",
+        message: message,
+        type: 'alert'
+      });
+    }
+  };
   const handleLogin = async (email: string, password?: string) => {
     if (!password) return;
     const cleanEmail = email.trim().toLowerCase();
@@ -1697,6 +1749,7 @@ export default function App() {
         // Salvar estado imediatamente
         localStorage.setItem('3dproducoes_isLoggedIn', 'true');
         localStorage.setItem('3dproducoes_userEmail', 'jose.festas@gmail.com');
+        localStorage.setItem('3dproducoes_view', 'shop');
         return;
       }
 
@@ -1711,7 +1764,7 @@ export default function App() {
             setIsLoggedIn(true);
             setUserEmail(email);
             
-            // Validar Admin via API
+            // Validar Admin via API ou email
             try {
               const response = await fetch('/api/admin/check', {
                 method: 'POST',
@@ -1741,7 +1794,7 @@ export default function App() {
         setIsLoggedIn(true);
         setUserEmail(cleanEmail);
         
-        // Validar Admin via API
+        // Validar Admin via API ou email
         try {
           const response = await fetch('/api/admin/check', {
             method: 'POST',
@@ -1759,10 +1812,10 @@ export default function App() {
       } else {
         console.warn("Local: Utilizador não encontrado ou senha incorreta.");
         // Se for o email do admin mas a senha estiver errada, dar uma dica
-        if (cleanEmail === 'jose.festas@gmail.com') {
-          throw new Error("Senha incorreta para o administrador. Tente 'admin'.");
+        if (cleanEmail === 'jose.festas@gmail.com' || cleanEmail.includes('jose.festas')) {
+          throw new Error("Senha incorreta para o administrador. A senha padrão é 'admin'.");
         }
-        throw new Error("Email ou senha incorretos.");
+        throw new Error("Email ou senha incorretos. Verifique os seus dados ou crie uma nova conta.");
       }
     } catch (error: any) {
       console.error("Erro no handleLogin:", error);
@@ -1949,6 +2002,7 @@ export default function App() {
                   onLogin={handleLogin} 
                   onGoToRegister={() => setView('register')} 
                   onGoToForgotPassword={() => setView('forgot_password')}
+                  onGoogleLogin={handleGoogleLogin}
                 />
               </motion.div>
             )}
