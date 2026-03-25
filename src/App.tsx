@@ -172,6 +172,35 @@ const compressImage = (base64Str: string, maxWidth = 500, maxHeight = 500, quali
   });
 };
 
+const splitImageIntoThree = (base64Str: string, quality = 0.6): Promise<string[]> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.src = base64Str;
+    img.onerror = (err) => reject(err);
+    img.onload = () => {
+      const parts: string[] = [];
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve([base64Str]);
+        return;
+      }
+
+      // Split vertically (3 panels)
+      const partWidth = Math.floor(img.width / 3);
+      canvas.width = partWidth;
+      canvas.height = img.height;
+
+      for (let i = 0; i < 3; i++) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, i * partWidth, 0, partWidth, img.height, 0, 0, partWidth, img.height);
+        parts.push(canvas.toDataURL('image/jpeg', quality));
+      }
+      resolve(parts);
+    };
+  });
+};
+
 // --- Components ---
 
 const Logo = ({ size = "md", className = "" }: { size?: "sm" | "md" | "lg", className?: string }) => {
@@ -195,11 +224,41 @@ const RequestModal = ({
 }: { 
   show: boolean; 
   onClose: () => void; 
-  onSubmit: (data: { type: string; description: string; contact: string }) => void;
+  onSubmit: (data: { type: string; description: string; contact: string; image?: string; triptychImages?: string[] }) => void;
 }) => {
   const [type, setType] = useState('new');
   const [description, setDescription] = useState('');
   const [contact, setContact] = useState('');
+  const [image, setImage] = useState<string | null>(null);
+  const [triptychImages, setTriptychImages] = useState<string[]>([]);
+  const [isTriptych, setIsTriptych] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setIsProcessing(true);
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        try {
+          const base64 = reader.result as string;
+          const compressed = await compressImage(base64);
+          setImage(compressed);
+          if (isTriptych) {
+            const parts = await splitImageIntoThree(compressed);
+            setTriptychImages(parts);
+          } else {
+            setTriptychImages([]);
+          }
+        } catch (error) {
+          console.error("Erro ao processar imagem:", error);
+        } finally {
+          setIsProcessing(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
@@ -253,6 +312,48 @@ const RequestModal = ({
           </div>
 
           <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant ml-1">Imagem de Referência (opcional)</label>
+            <div className="flex gap-3 items-center">
+              <div className="w-16 h-16 rounded-xl bg-white/30 border border-white/40 overflow-hidden flex items-center justify-center relative group">
+                {image ? (
+                  <img src={image} className="w-full h-full object-cover" />
+                ) : (
+                  <Camera className="text-outline" size={20} />
+                )}
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handleFileChange}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                />
+              </div>
+              <div className="flex-grow flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <label className="px-3 py-1.5 bg-white/30 text-on-surface text-[10px] font-bold rounded-lg cursor-pointer hover:bg-white/50 transition-colors border border-white/40">
+                    Carregar Foto
+                    <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+                  </label>
+                  <button 
+                    onClick={() => setIsTriptych(!isTriptych)}
+                    className={`px-3 py-1.5 text-[10px] font-bold rounded-lg transition-colors border ${isTriptych ? 'bg-primary text-white border-primary' : 'bg-white/30 text-on-surface border-white/40'}`}
+                  >
+                    {isTriptych ? 'Modo Tríptico Ativo' : 'Repartir em 3'}
+                  </button>
+                </div>
+                {triptychImages.length === 3 && (
+                  <div className="flex gap-1">
+                    {triptychImages.map((img, i) => (
+                      <div key={i} className="w-6 h-9 rounded bg-white/30 border border-white/40 overflow-hidden">
+                        <img src={img} className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
             <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant ml-1">Contacto (Opcional)</label>
             <input 
               type="text"
@@ -264,11 +365,11 @@ const RequestModal = ({
           </div>
 
           <button 
-            onClick={() => onSubmit({ type, description, contact })}
-            disabled={!description}
+            onClick={() => onSubmit({ type, description, contact, image: image || undefined, triptychImages: triptychImages.length === 3 ? triptychImages : undefined })}
+            disabled={!description || isProcessing}
             className="w-full h-14 signature-gradient text-white font-black rounded-2xl shadow-lg active:scale-[0.97] transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Send size={20} />
+            {isProcessing ? <RotateCw className="animate-spin" size={20} /> : <Send size={20} />}
             Enviar Pedido
           </button>
         </div>
@@ -951,32 +1052,56 @@ const ProductDetailView = ({ product, onAddToCart, onBack }: { product: Product;
         )}
       </AnimatePresence>
 
-      <div className="relative aspect-square glass-card rounded-[2.5rem] overflow-hidden mb-8 group">
-        <motion.div 
-          className="w-full h-full cursor-pointer relative"
-          onClick={() => setShowLightbox(true)}
-          animate={{ 
-            scale: isZoomed ? 1.5 : 1
-          }}
-          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        >
-          <img 
-            src={product.imageUrl} 
-            alt={product.name} 
-            className="w-full h-full object-cover"
-            referrerPolicy="no-referrer"
-          />
-        </motion.div>
-        
-        <div className="absolute top-4 right-4 flex flex-col gap-2">
-          <button 
-            onClick={(e) => { e.stopPropagation(); setShowLightbox(true); }}
-            className={`w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center shadow-lg transition-all bg-white/80 text-primary hover:bg-primary hover:text-white`}
+        <div className="relative aspect-square glass-card rounded-[2.5rem] overflow-hidden mb-8 group">
+          <motion.div 
+            className="w-full h-full cursor-pointer relative"
+            onClick={() => setShowLightbox(true)}
+            animate={{ 
+              scale: isZoomed ? 1.5 : 1
+            }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
           >
-            <Maximize2 size={20} />
-          </button>
+            <img 
+              src={product.imageUrl} 
+              alt={product.name} 
+              className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+          </motion.div>
+          
+          <div className="absolute top-4 right-4 flex flex-col gap-2">
+            <button 
+              onClick={(e) => { e.stopPropagation(); setShowLightbox(true); }}
+              className={`w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center shadow-lg transition-all bg-white/80 text-primary hover:bg-primary hover:text-white`}
+            >
+              <Maximize2 size={20} />
+            </button>
+          </div>
         </div>
-      </div>
+
+        {product.triptychImages && product.triptychImages.length === 3 && (
+          <div className="mb-8">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-outline mb-4">Peças do Tríptico</h3>
+            <div className="grid grid-cols-3 gap-3">
+              {product.triptychImages.map((img, idx) => (
+                <motion.div 
+                  key={idx}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 * idx }}
+                  className="aspect-[2/3] rounded-2xl overflow-hidden glass-card border border-primary/5 shadow-sm"
+                >
+                  <img 
+                    src={img} 
+                    alt={`${product.name} part ${idx + 1}`} 
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
 
       <div className="space-y-6">
         <div className="flex justify-between items-start">
@@ -1256,8 +1381,11 @@ const AdminView = ({
     category: '',
     description: '',
     rating: 5,
-    reviewCount: 0
+    reviewCount: 0,
+    triptychImages: []
   });
+
+  const [isTriptych, setIsTriptych] = useState(false);
 
   const handleEdit = (product: Product) => {
     setEditingId(product.id);
@@ -1295,8 +1423,10 @@ const AdminView = ({
         category: '',
         description: '',
         rating: 5,
-        reviewCount: 0
+        reviewCount: 0,
+        triptychImages: []
       });
+      setIsTriptych(false);
     } catch (error) {
       console.error("Erro ao salvar produto:", error);
       setStatusMessage("Erro ao salvar. Verifique o console ou o limite de espaço.");
@@ -1326,11 +1456,22 @@ const AdminView = ({
         // Compress image before setting it to state
         try {
           const compressed = await compressImage(base64);
-          setFormData(prev => ({ ...prev, imageUrl: compressed }));
-          setStatusMessage("Imagem processada com sucesso!");
+          
+          let triptychParts: string[] = [];
+          if (isTriptych) {
+            triptychParts = await splitImageIntoThree(compressed);
+          }
+          
+          setFormData(prev => ({ 
+            ...prev, 
+            imageUrl: compressed,
+            triptychImages: triptychParts
+          }));
+          
+          setStatusMessage(isTriptych ? "Imagem dividida em 3 com sucesso!" : "Imagem processada com sucesso!");
           setTimeout(() => setStatusMessage(null), 2000);
         } catch (error) {
-          console.error("Erro ao comprimir imagem:", error);
+          console.error("Erro ao processar imagem:", error);
           setFormData(prev => ({ ...prev, imageUrl: base64 }));
         } finally {
           setIsUploading(false);
@@ -1400,11 +1541,29 @@ const AdminView = ({
                 </div>
                 <div className="flex-grow">
                   <p className="text-[10px] text-on-surface-variant font-medium mb-2">Carregue uma foto diretamente do seu telemóvel</p>
-                  <label className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary text-xs font-bold rounded-lg cursor-pointer hover:bg-primary/20 transition-colors">
-                    <Upload size={14} />
-                    Escolher Ficheiro
-                    <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <label className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary text-xs font-bold rounded-lg cursor-pointer hover:bg-primary/20 transition-colors">
+                      <Upload size={14} />
+                      Escolher Ficheiro
+                      <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+                    </label>
+                    <button 
+                      onClick={() => setIsTriptych(!isTriptych)}
+                      className={`inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors ${isTriptych ? 'bg-primary text-white shadow-md' : 'bg-white/50 text-on-surface-variant border border-primary/10'}`}
+                    >
+                      <ClipboardList size={14} />
+                      {isTriptych ? 'Modo Tríptico Ativo' : 'Repartir em 3'}
+                    </button>
+                  </div>
+                  {formData.triptychImages && formData.triptychImages.length === 3 && (
+                    <div className="flex gap-1 mt-2">
+                      {formData.triptychImages.map((img, i) => (
+                        <div key={i} className="w-8 h-12 rounded bg-white/50 border border-primary/10 overflow-hidden">
+                          <img src={img} className="w-full h-full object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

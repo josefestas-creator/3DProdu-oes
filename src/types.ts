@@ -8,6 +8,7 @@ export interface Product {
   rating: number;
   reviewCount: number;
   images360?: string[]; // Array of images for 360 view
+  triptychImages?: string[]; // Array of 3 images for triptych view
 }
 
 export interface CartItem extends Product {
