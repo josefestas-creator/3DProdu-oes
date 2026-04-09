@@ -60,7 +60,9 @@ import {
   signOut,
   onAuthStateChanged,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  setPersistence,
+  browserSessionPersistence
 } from 'firebase/auth';
 
 // Test Firestore connection
@@ -230,9 +232,9 @@ const RequestModal = ({
   const [description, setDescription] = useState('');
   const [contact, setContact] = useState('');
   const [image, setImage] = useState<string | null>(null);
-  const [triptychImages, setTriptychImages] = useState<string[]>([]);
-  const [isTriptych, setIsTriptych] = useState(false);
+  const [triptychImages, setTriptychImages] = useState<string[]>(['', '', '']);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -244,16 +246,34 @@ const RequestModal = ({
           const base64 = reader.result as string;
           const compressed = await compressImage(base64);
           setImage(compressed);
-          if (isTriptych) {
-            const parts = await splitImageIntoThree(compressed);
-            setTriptychImages(parts);
-          } else {
-            setTriptychImages([]);
-          }
         } catch (error) {
           console.error("Erro ao processar imagem:", error);
         } finally {
           setIsProcessing(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleAdditionalFileChange = async (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploadingIndex(index);
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        try {
+          const base64 = reader.result as string;
+          const compressed = await compressImage(base64);
+          setTriptychImages(prev => {
+            const next = [...prev];
+            next[index] = compressed;
+            return next;
+          });
+        } catch (error) {
+          console.error("Erro ao processar imagem adicional:", error);
+        } finally {
+          setUploadingIndex(null);
         }
       };
       reader.readAsDataURL(file);
@@ -312,9 +332,9 @@ const RequestModal = ({
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant ml-1">Imagem de Referência (opcional)</label>
-            <div className="flex gap-3 items-center">
-              <div className="w-16 h-16 rounded-xl bg-white/30 border border-white/40 overflow-hidden flex items-center justify-center relative group">
+            <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant ml-1">Fotos de Referência (Opcional)</label>
+            <div className="grid grid-cols-4 gap-2">
+              <div className="relative aspect-square rounded-xl bg-white/30 border border-white/40 overflow-hidden flex items-center justify-center group">
                 {image ? (
                   <img src={image} className="w-full h-full object-cover" />
                 ) : (
@@ -327,30 +347,30 @@ const RequestModal = ({
                   className="absolute inset-0 opacity-0 cursor-pointer"
                 />
               </div>
-              <div className="flex-grow flex flex-col gap-2">
-                <div className="flex gap-2">
-                  <label className="px-3 py-1.5 bg-white/30 text-on-surface text-[10px] font-bold rounded-lg cursor-pointer hover:bg-white/50 transition-colors border border-white/40">
-                    Carregar Foto
-                    <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-                  </label>
-                  <button 
-                    onClick={() => setIsTriptych(!isTriptych)}
-                    className={`px-3 py-1.5 text-[10px] font-bold rounded-lg transition-colors border ${isTriptych ? 'bg-primary text-white border-primary' : 'bg-white/30 text-on-surface border-white/40'}`}
-                  >
-                    {isTriptych ? 'Modo Tríptico Ativo' : 'Repartir em 3'}
-                  </button>
+              
+              {[0, 1, 2].map((idx) => (
+                <div key={idx} className="relative aspect-square rounded-xl bg-white/30 border border-white/40 overflow-hidden flex items-center justify-center group">
+                  {triptychImages[idx] ? (
+                    <img src={triptychImages[idx]} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="flex flex-col items-center">
+                      {uploadingIndex === idx ? (
+                        <RotateCw size={14} className="animate-spin text-primary" />
+                      ) : (
+                        <Plus size={16} className="text-outline" />
+                      )}
+                    </div>
+                  )}
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={(e) => handleAdditionalFileChange(e, idx)}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
                 </div>
-                {triptychImages.length === 3 && (
-                  <div className="flex gap-1">
-                    {triptychImages.map((img, i) => (
-                      <div key={i} className="w-6 h-9 rounded bg-white/30 border border-white/40 overflow-hidden">
-                        <img src={img} className="w-full h-full object-cover" />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              ))}
             </div>
+            <p className="text-[10px] text-on-surface-variant font-medium ml-1">Pode carregar até 4 fotos (1 principal + 3 extras).</p>
           </div>
 
           <div className="flex flex-col gap-2">
@@ -1015,6 +1035,17 @@ const CartView = ({
 const ProductDetailView = ({ product, onAddToCart, onBack }: { product: Product; onAddToCart: (p: Product) => void; onBack: () => void }) => {
   const [isZoomed, setIsZoomed] = useState(false);
   const [showLightbox, setShowLightbox] = useState(false);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+
+  const allImages = useMemo(() => {
+    const images = [product.imageUrl];
+    if (product.triptychImages) {
+      product.triptychImages.forEach(img => {
+        if (img) images.push(img);
+      });
+    }
+    return images;
+  }, [product]);
 
   return (
     <motion.div 
@@ -1029,7 +1060,7 @@ const ProductDetailView = ({ product, onAddToCart, onBack }: { product: Product;
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4"
+            className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex flex-col items-center justify-center p-4"
             onClick={() => setShowLightbox(false)}
           >
             <motion.button 
@@ -1038,16 +1069,66 @@ const ProductDetailView = ({ product, onAddToCart, onBack }: { product: Product;
             >
               <X size={24} />
             </motion.button>
-            <motion.img 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              src={product.imageUrl} 
-              alt={product.name} 
-              className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-              referrerPolicy="no-referrer"
-            />
+
+            <div className="w-full max-w-4xl h-[70vh] flex items-center justify-center relative px-12">
+              {allImages.length > 1 && (
+                <>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveImageIndex((prev) => (prev === 0 ? allImages.length - 1 : prev - 1));
+                    }}
+                    className="absolute left-0 w-12 h-12 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center transition-colors"
+                  >
+                    <ChevronLeft size={24} />
+                  </button>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveImageIndex((prev) => (prev === allImages.length - 1 ? 0 : prev + 1));
+                    }}
+                    className="absolute right-0 w-12 h-12 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center transition-colors"
+                  >
+                    <ChevronRight size={24} />
+                  </button>
+                </>
+              )}
+              
+              <AnimatePresence mode="wait">
+                <motion.img 
+                  key={activeImageIndex}
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  src={allImages[activeImageIndex]} 
+                  alt={`${product.name} image ${activeImageIndex + 1}`} 
+                  className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
+                  onClick={(e) => e.stopPropagation()}
+                  referrerPolicy="no-referrer"
+                />
+              </AnimatePresence>
+            </div>
+
+            {allImages.length > 1 && (
+              <div className="mt-8 flex gap-3 overflow-x-auto pb-4 max-w-full px-4 no-scrollbar">
+                {allImages.map((img, idx) => (
+                  <button
+                    key={idx}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveImageIndex(idx);
+                    }}
+                    className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all flex-shrink-0 ${activeImageIndex === idx ? 'border-primary scale-110' : 'border-white/10 opacity-50'}`}
+                  >
+                    <img src={img} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  </button>
+                ))}
+              </div>
+            )}
+            
+            <p className="mt-4 text-white/50 text-xs font-bold uppercase tracking-widest">
+              Imagem {activeImageIndex + 1} de {allImages.length}
+            </p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1055,7 +1136,10 @@ const ProductDetailView = ({ product, onAddToCart, onBack }: { product: Product;
         <div className="relative aspect-square glass-card rounded-[2.5rem] overflow-hidden mb-8 group">
           <motion.div 
             className="w-full h-full cursor-pointer relative"
-            onClick={() => setShowLightbox(true)}
+            onClick={() => {
+              setActiveImageIndex(0);
+              setShowLightbox(true);
+            }}
             animate={{ 
               scale: isZoomed ? 1.5 : 1
             }}
@@ -1071,7 +1155,11 @@ const ProductDetailView = ({ product, onAddToCart, onBack }: { product: Product;
           
           <div className="absolute top-4 right-4 flex flex-col gap-2">
             <button 
-              onClick={(e) => { e.stopPropagation(); setShowLightbox(true); }}
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                setActiveImageIndex(0);
+                setShowLightbox(true); 
+              }}
               className={`w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center shadow-lg transition-all bg-white/80 text-primary hover:bg-primary hover:text-white`}
             >
               <Maximize2 size={20} />
@@ -1079,21 +1167,25 @@ const ProductDetailView = ({ product, onAddToCart, onBack }: { product: Product;
           </div>
         </div>
 
-        {product.triptychImages && product.triptychImages.length === 3 && (
+        {allImages.length > 1 && (
           <div className="mb-8">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-outline mb-4">Peças do Tríptico</h3>
-            <div className="grid grid-cols-3 gap-3">
-              {product.triptychImages.map((img, idx) => (
+            <h3 className="text-xs font-bold uppercase tracking-widest text-outline mb-4">Galeria de Fotos</h3>
+            <div className="grid grid-cols-4 gap-3">
+              {allImages.map((img, idx) => (
                 <motion.div 
                   key={idx}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 * idx }}
-                  className="aspect-[2/3] rounded-2xl overflow-hidden glass-card border border-primary/5 shadow-sm"
+                  className={`aspect-square rounded-2xl overflow-hidden glass-card border cursor-pointer transition-all ${activeImageIndex === idx ? 'border-primary ring-2 ring-primary/20' : 'border-primary/5 hover:border-primary/30'}`}
+                  onClick={() => {
+                    setActiveImageIndex(idx);
+                    setShowLightbox(true);
+                  }}
                 >
                   <img 
                     src={img} 
-                    alt={`${product.name} part ${idx + 1}`} 
+                    alt={`${product.name} thumbnail ${idx + 1}`} 
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
                   />
@@ -1367,6 +1459,7 @@ const AdminView = ({
   const [isAdding, setIsAdding] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   
   useEffect(() => {
     if (isAdding || editingId) {
@@ -1446,6 +1539,45 @@ const AdminView = ({
     onReorderProducts(newProducts);
   };
 
+  const handleAdditionalFileChange = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploadingIndex(index);
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = reader.result as string;
+        try {
+          const compressed = await compressImage(base64);
+          setFormData(prev => {
+            const newTriptych = [...(prev.triptychImages || [])];
+            // Ensure array has at least 3 slots
+            while (newTriptych.length < 3) newTriptych.push('');
+            newTriptych[index] = compressed;
+            return { ...prev, triptychImages: newTriptych };
+          });
+          setStatusMessage(`Foto adicional ${index + 1} carregada!`);
+          setTimeout(() => setStatusMessage(null), 2000);
+        } catch (error) {
+          console.error("Erro ao processar imagem adicional:", error);
+        } finally {
+          setUploadingIndex(null);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeAdditionalImage = (index: number) => {
+    setFormData(prev => {
+      const newTriptych = [...(prev.triptychImages || [])];
+      if (newTriptych[index]) {
+        newTriptych[index] = '';
+        return { ...prev, triptychImages: newTriptych };
+      }
+      return prev;
+    });
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -1453,22 +1585,13 @@ const AdminView = ({
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64 = reader.result as string;
-        // Compress image before setting it to state
         try {
           const compressed = await compressImage(base64);
-          
-          let triptychParts: string[] = [];
-          if (isTriptych) {
-            triptychParts = await splitImageIntoThree(compressed);
-          }
-          
           setFormData(prev => ({ 
             ...prev, 
-            imageUrl: compressed,
-            triptychImages: triptychParts
+            imageUrl: compressed
           }));
-          
-          setStatusMessage(isTriptych ? "Imagem dividida em 3 com sucesso!" : "Imagem processada com sucesso!");
+          setStatusMessage("Imagem principal processada!");
           setTimeout(() => setStatusMessage(null), 2000);
         } catch (error) {
           console.error("Erro ao processar imagem:", error);
@@ -1540,32 +1663,56 @@ const AdminView = ({
                   />
                 </div>
                 <div className="flex-grow">
-                  <p className="text-[10px] text-on-surface-variant font-medium mb-2">Carregue uma foto diretamente do seu telemóvel</p>
+                  <p className="text-[10px] text-on-surface-variant font-medium mb-2">Carregue a foto principal da peça</p>
                   <div className="flex flex-wrap gap-2">
                     <label className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary text-xs font-bold rounded-lg cursor-pointer hover:bg-primary/20 transition-colors">
                       <Upload size={14} />
-                      Escolher Ficheiro
+                      Escolher Foto Principal
                       <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
                     </label>
-                    <button 
-                      onClick={() => setIsTriptych(!isTriptych)}
-                      className={`inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors ${isTriptych ? 'bg-primary text-white shadow-md' : 'bg-white/50 text-on-surface-variant border border-primary/10'}`}
-                    >
-                      <ClipboardList size={14} />
-                      {isTriptych ? 'Modo Tríptico Ativo' : 'Repartir em 3'}
-                    </button>
                   </div>
-                  {formData.triptychImages && formData.triptychImages.length === 3 && (
-                    <div className="flex gap-1 mt-2">
-                      {formData.triptychImages.map((img, i) => (
-                        <div key={i} className="w-8 h-12 rounded bg-white/50 border border-primary/10 overflow-hidden">
-                          <img src={img} className="w-full h-full object-cover" />
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant ml-1">Fotos Adicionais (Máx. 3)</label>
+              <div className="grid grid-cols-3 gap-3">
+                {[0, 1, 2].map((idx) => (
+                  <div key={idx} className="relative aspect-[3/4] rounded-xl bg-white/50 border border-primary/10 overflow-hidden flex items-center justify-center group">
+                    {formData.triptychImages?.[idx] ? (
+                      <>
+                        <img src={formData.triptychImages[idx]} className="w-full h-full object-cover" />
+                        <button 
+                          onClick={() => removeAdditionalImage(idx)}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X size={12} />
+                        </button>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center gap-1">
+                        {uploadingIndex === idx ? (
+                          <RotateCw size={16} className="animate-spin text-primary" />
+                        ) : (
+                          <>
+                            <Plus size={20} className="text-outline" />
+                            <span className="text-[8px] font-bold text-outline uppercase">Foto {idx + 1}</span>
+                          </>
+                        )}
+                      </div>
+                    )}
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={(e) => handleAdditionalFileChange(e, idx)}
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                      disabled={uploadingIndex !== null}
+                    />
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-on-surface-variant font-medium ml-1">Estas fotos aparecerão na galeria quando o cliente clicar na foto principal.</p>
             </div>
 
             <input 
@@ -1729,19 +1876,16 @@ class ErrorBoundary extends React.Component<any, any> {
 }
 
 export default function App() {
-  const [view, setView] = useState<ViewState>(() => {
-    const saved = localStorage.getItem('3dproducoes_view');
-    return (saved as ViewState) || 'landing';
-  });
+  const [view, setView] = useState<ViewState>('profile');
   const [cart, setCart] = useState<CartItem[]>(() => {
     const saved = localStorage.getItem('3dproducoes_cart');
     return saved ? JSON.parse(saved) : [];
   });
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    return localStorage.getItem('3dproducoes_isLoggedIn') === 'true';
+    return sessionStorage.getItem('3dproducoes_isLoggedIn') === 'true';
   });
   const [userEmail, setUserEmail] = useState(() => {
-    return localStorage.getItem('3dproducoes_userEmail') || '';
+    return sessionStorage.getItem('3dproducoes_userEmail') || '';
   });
   const [isAdmin, setIsAdmin] = useState(false);
   const [users, setUsers] = useState<{ email: string; password: string; name?: string }[]>(() => {
@@ -1776,6 +1920,15 @@ export default function App() {
       return PRODUCTS;
     }
   });
+
+  // Garantir que o administrador está sempre na lista de utilizadores
+  useEffect(() => {
+    const adminEmail = 'jose.festas@gmail.com';
+    const hasAdmin = users.some(u => u.email.toLowerCase() === adminEmail);
+    if (!hasAdmin) {
+      setUsers(prev => [...prev, { email: adminEmail, password: 'admin', name: 'Administrador' }]);
+    }
+  }, [users]);
 
   // Firestore Products Sync
   useEffect(() => {
@@ -1853,6 +2006,11 @@ export default function App() {
   useEffect(() => {
     if (!auth) return;
     
+    // Configurar persistência para sessão (limpa ao fechar o navegador)
+    setPersistence(auth, browserSessionPersistence).catch(err => {
+      console.error("Erro ao configurar persistência:", err);
+    });
+    
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user && user.email) {
         console.log("Firebase: Utilizador detetado:", user.email);
@@ -1873,7 +2031,7 @@ export default function App() {
         }
       } else {
         // Apenas limpa se NÃO houver um email no localStorage (que indicaria login local)
-        const localEmail = localStorage.getItem('3dproducoes_userEmail');
+        const localEmail = sessionStorage.getItem('3dproducoes_userEmail');
         if (!localEmail) {
           setIsLoggedIn(false);
           setUserEmail('');
@@ -1895,25 +2053,19 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('3dproducoes_view', view);
+      // Não salvamos mais a vista no sessionStorage para que abra sempre no perfil ao iniciar
+      // Mas mantemos o estado de login na sessão
+      sessionStorage.setItem('3dproducoes_isLoggedIn', isLoggedIn.toString());
     } catch (e) {
-      console.error("Erro ao salvar vista no localStorage:", e);
-    }
-  }, [view]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('3dproducoes_isLoggedIn', isLoggedIn.toString());
-    } catch (e) {
-      console.error("Erro ao salvar estado de login no localStorage:", e);
+      console.error("Erro ao salvar estado de login no sessionStorage:", e);
     }
   }, [isLoggedIn]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('3dproducoes_userEmail', userEmail);
+      sessionStorage.setItem('3dproducoes_userEmail', userEmail);
     } catch (e) {
-      console.error("Erro ao salvar email no localStorage:", e);
+      console.error("Erro ao salvar email no sessionStorage:", e);
     }
   }, [userEmail]);
 
@@ -2036,9 +2188,9 @@ export default function App() {
           setIsLoggedIn(true);
           setUserEmail(email);
           setIsAdmin(true);
-          setView('shop');
-          localStorage.setItem('3dproducoes_isLoggedIn', 'true');
-          localStorage.setItem('3dproducoes_userEmail', email);
+          setView('profile');
+          sessionStorage.setItem('3dproducoes_isLoggedIn', 'true');
+          sessionStorage.setItem('3dproducoes_userEmail', email);
         } else {
           await auth.signOut();
           throw new Error("O login com Google está restrito ao administrador (jose.festas@gmail.com).");
@@ -2084,10 +2236,10 @@ export default function App() {
         setIsLoggedIn(true);
         setUserEmail('jose.festas@gmail.com');
         setIsAdmin(true);
-        setView('shop');
-        localStorage.setItem('3dproducoes_isLoggedIn', 'true');
-        localStorage.setItem('3dproducoes_userEmail', 'jose.festas@gmail.com');
-        localStorage.setItem('3dproducoes_view', 'shop');
+        setView('profile');
+        sessionStorage.setItem('3dproducoes_isLoggedIn', 'true');
+        sessionStorage.setItem('3dproducoes_userEmail', 'jose.festas@gmail.com');
+        sessionStorage.setItem('3dproducoes_view', 'profile');
         return;
       }
 
@@ -2100,9 +2252,9 @@ export default function App() {
             setIsLoggedIn(true);
             setUserEmail(email);
             setIsAdmin(email === 'jose.festas@gmail.com');
-            setView('shop');
-            localStorage.setItem('3dproducoes_isLoggedIn', 'true');
-            localStorage.setItem('3dproducoes_userEmail', email);
+            setView('profile');
+            sessionStorage.setItem('3dproducoes_isLoggedIn', 'true');
+            sessionStorage.setItem('3dproducoes_userEmail', email);
             return;
           }
         } catch (firebaseError: any) {
@@ -2113,8 +2265,22 @@ export default function App() {
         }
       }
 
-      // 3. Fallback Local / Auto-Registo
-      const user = users.find(u => u.email.toLowerCase() === cleanEmail);
+      // 3. Fallback Local
+      let currentUsers = users;
+      // Verificação de emergência: se não encontrar no estado, verifica diretamente no localStorage
+      if (currentUsers.length === 0 || !currentUsers.find(u => u.email.toLowerCase() === cleanEmail)) {
+        try {
+          const saved = localStorage.getItem('3dproducoes_users');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) currentUsers = parsed;
+          }
+        } catch (e) {
+          console.error("Erro na verificação de emergência:", e);
+        }
+      }
+
+      const user = currentUsers.find(u => u.email.toLowerCase() === cleanEmail);
       
       if (user) {
         if (user.password === cleanPassword || cleanPassword.toLowerCase() === 'admin') {
@@ -2122,34 +2288,15 @@ export default function App() {
           setIsLoggedIn(true);
           setUserEmail(cleanEmail);
           setIsAdmin(cleanEmail === 'jose.festas@gmail.com');
-          setView('shop');
-          localStorage.setItem('3dproducoes_isLoggedIn', 'true');
-          localStorage.setItem('3dproducoes_userEmail', cleanEmail);
+          setView('profile');
+          sessionStorage.setItem('3dproducoes_isLoggedIn', 'true');
+          sessionStorage.setItem('3dproducoes_userEmail', cleanEmail);
         } else {
-          throw new Error("Senha incorreta. Verifique os seus dados ou use a recuperação de senha.");
+          throw new Error("Palavra-passe incorreta. Se não se lembra da sua senha, use a recuperação de conta.");
         }
       } else {
-        // Auto-Registo: Se não existe, criamos e entramos (Melhor UX para protótipo)
-        console.log("Local: Criando nova conta automaticamente.");
-        const newUser = { email: cleanEmail, password: cleanPassword, name: cleanEmail.split('@')[0] };
-        setUsers(prev => {
-          const updated = [...prev, newUser];
-          localStorage.setItem('3dproducoes_users', JSON.stringify(updated));
-          return updated;
-        });
-        setIsLoggedIn(true);
-        setUserEmail(cleanEmail);
-        setIsAdmin(cleanEmail === 'jose.festas@gmail.com');
-        setView('shop');
-        localStorage.setItem('3dproducoes_isLoggedIn', 'true');
-        localStorage.setItem('3dproducoes_userEmail', cleanEmail);
-        
-        setModal({
-          show: true,
-          title: "Bem-vindo!",
-          message: "A sua conta foi criada automaticamente. Boas compras!",
-          type: 'alert'
-        });
+        console.log("Login falhou: Utilizador não encontrado na lista de", currentUsers.length, "utilizadores.");
+        throw new Error("Esta conta ainda não existe no nosso sistema. Por favor, clique no botão 'Criar Conta' abaixo para se registar pela primeira vez.");
       }
     } catch (error: any) {
       console.error("Erro no handleLogin:", error);
@@ -2172,32 +2319,31 @@ export default function App() {
         try {
           const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, cleanPassword);
           if (userCredential.user) {
-            setIsLoggedIn(true);
-            setUserEmail(userCredential.user.email || cleanEmail);
-            setIsAdmin(cleanEmail === 'jose.festas@gmail.com');
-            setView('shop');
-            return;
+            console.log("Firebase: Registo com sucesso.");
           }
         } catch (firebaseError: any) {
-          console.warn("Firebase Register falhou, tentando fallback local:", firebaseError.message);
+          console.warn("Firebase Register falhou, continuando com registo local:", firebaseError.message);
         }
       }
 
       const exists = users.find(u => u.email.toLowerCase() === cleanEmail);
       if (exists) {
-        throw new Error("Este email já está registado.");
+        throw new Error("Este email já está registado. Tente fazer login.");
       }
 
       const newUser = { name, email: cleanEmail, password: cleanPassword };
       setUsers(prev => {
         const newUsers = [...prev, newUser];
-        localStorage.setItem('3dproducoes_users', JSON.stringify(newUsers)); // Forçar persistência imediata
+        localStorage.setItem('3dproducoes_users', JSON.stringify(newUsers));
         return newUsers;
       });
+      
       setIsLoggedIn(true);
       setUserEmail(cleanEmail);
       setIsAdmin(cleanEmail === 'jose.festas@gmail.com');
-      setView('shop');
+      setView('profile');
+      sessionStorage.setItem('3dproducoes_isLoggedIn', 'true');
+      sessionStorage.setItem('3dproducoes_userEmail', cleanEmail);
     } catch (error: any) {
       console.error("Erro no handleRegister:", error);
       setModal({
@@ -2357,7 +2503,7 @@ export default function App() {
       <AnimatePresence mode="wait">
         {!isLoggedIn ? (
           <>
-            {view === 'landing' && (
+            {(view === 'landing' || view === 'profile') && (
               <motion.div key="landing" className="w-full">
                 <LandingView 
                   onGoToLogin={() => setView('login')} 
