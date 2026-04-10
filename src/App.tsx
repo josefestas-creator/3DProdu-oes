@@ -1578,6 +1578,31 @@ const AdminView = ({
     });
   };
 
+  const moveImage = (index: number, direction: 'left' | 'right') => {
+    const currentTriptych = formData.triptychImages || [];
+    const paddedTriptych = [...currentTriptych];
+    while (paddedTriptych.length < 3) paddedTriptych.push('');
+    
+    const allImages = [formData.imageUrl, ...paddedTriptych];
+    const targetIndex = direction === 'left' ? index - 1 : index + 1;
+    
+    if (targetIndex < 0 || targetIndex >= 4) return;
+    
+    // Swap
+    const temp = allImages[index];
+    allImages[index] = allImages[targetIndex];
+    allImages[targetIndex] = temp;
+    
+    setFormData(prev => ({
+      ...prev,
+      imageUrl: allImages[0],
+      triptychImages: allImages.slice(1)
+    }));
+    
+    setStatusMessage("Ordem das fotos atualizada!");
+    setTimeout(() => setStatusMessage(null), 2000);
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -1651,7 +1676,18 @@ const AdminView = ({
               <div className="flex gap-3 items-center">
                 <div className="w-20 h-20 rounded-xl bg-white/50 border border-primary/10 overflow-hidden flex items-center justify-center relative group">
                   {formData.imageUrl ? (
-                    <img src={formData.imageUrl} className="w-full h-full object-cover" />
+                    <>
+                      <img src={formData.imageUrl} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <button 
+                          onClick={() => moveImage(0, 'right')}
+                          className="p-1.5 bg-white/20 hover:bg-white/40 rounded-full text-white transition-colors"
+                          title="Mover para a direita"
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    </>
                   ) : (
                     <Camera className="text-outline" size={24} />
                   )}
@@ -1678,39 +1714,62 @@ const AdminView = ({
             <div className="flex flex-col gap-2">
               <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant ml-1">Fotos Adicionais (Máx. 3)</label>
               <div className="grid grid-cols-3 gap-3">
-                {[0, 1, 2].map((idx) => (
-                  <div key={idx} className="relative aspect-[3/4] rounded-xl bg-white/50 border border-primary/10 overflow-hidden flex items-center justify-center group">
-                    {formData.triptychImages?.[idx] ? (
-                      <>
-                        <img src={formData.triptychImages[idx]} className="w-full h-full object-cover" />
-                        <button 
-                          onClick={() => removeAdditionalImage(idx)}
-                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X size={12} />
-                        </button>
-                      </>
-                    ) : (
-                      <div className="flex flex-col items-center gap-1">
-                        {uploadingIndex === idx ? (
-                          <RotateCw size={16} className="animate-spin text-primary" />
-                        ) : (
-                          <>
-                            <Plus size={20} className="text-outline" />
-                            <span className="text-[8px] font-bold text-outline uppercase">Foto {idx + 1}</span>
-                          </>
-                        )}
-                      </div>
-                    )}
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={(e) => handleAdditionalFileChange(e, idx)}
-                      className="absolute inset-0 opacity-0 cursor-pointer"
-                      disabled={uploadingIndex !== null}
-                    />
-                  </div>
-                ))}
+                {[0, 1, 2].map((idx) => {
+                  const absoluteIdx = idx + 1;
+                  return (
+                    <div key={idx} className="relative aspect-[3/4] rounded-xl bg-white/50 border border-primary/10 overflow-hidden flex items-center justify-center group">
+                      {formData.triptychImages?.[idx] ? (
+                        <>
+                          <img src={formData.triptychImages[idx]} className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                            <div className="flex gap-2">
+                              <button 
+                                onClick={() => moveImage(absoluteIdx, 'left')}
+                                className="p-1.5 bg-white/20 hover:bg-white/40 rounded-full text-white transition-colors"
+                                title="Mover para a esquerda"
+                              >
+                                <ChevronLeft size={16} />
+                              </button>
+                              <button 
+                                onClick={() => moveImage(absoluteIdx, 'right')}
+                                disabled={absoluteIdx === 3}
+                                className={`p-1.5 bg-white/20 hover:bg-white/40 rounded-full text-white transition-colors ${absoluteIdx === 3 ? 'opacity-20 cursor-not-allowed' : ''}`}
+                                title="Mover para a direita"
+                              >
+                                <ChevronRight size={16} />
+                              </button>
+                            </div>
+                            <button 
+                              onClick={() => removeAdditionalImage(idx)}
+                              className="p-1.5 bg-red-500/80 hover:bg-red-500 rounded-full text-white transition-colors"
+                              title="Remover foto"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex flex-col items-center gap-1">
+                          {uploadingIndex === idx ? (
+                            <RotateCw size={16} className="animate-spin text-primary" />
+                          ) : (
+                            <>
+                              <Plus size={20} className="text-outline" />
+                              <span className="text-[8px] font-bold text-outline uppercase">Foto {idx + 1}</span>
+                            </>
+                          )}
+                        </div>
+                      )}
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={(e) => handleAdditionalFileChange(e, idx)}
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                        disabled={uploadingIndex !== null}
+                      />
+                    </div>
+                  );
+                })}
               </div>
               <p className="text-[10px] text-on-surface-variant font-medium ml-1">Estas fotos aparecerão na galeria quando o cliente clicar na foto principal.</p>
             </div>
@@ -1938,7 +1997,7 @@ export default function App() {
     }
 
     console.log("Firestore: Iniciando sincronização de produtos...");
-    const q = query(collection(db, 'products'), orderBy('name'));
+    const q = query(collection(db, 'products'), orderBy('order', 'asc'));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const firestoreProducts: Product[] = [];
@@ -2412,19 +2471,22 @@ export default function App() {
   };
 
   const addProduct = async (newProduct: Omit<Product, 'id'>) => {
+    const order = products.length;
+    const productWithOrder = { ...newProduct, order };
+    
     if (db && isAdmin && auth.currentUser) {
       try {
         console.log("Firestore: Adicionando produto...");
-        await addDoc(collection(db, 'products'), newProduct);
+        await addDoc(collection(db, 'products'), productWithOrder);
       } catch (error) {
         handleFirestoreError(error, OperationType.CREATE, 'products');
         // Fallback to local
-        const productWithId = { ...newProduct, id: Date.now().toString() };
-        setProducts(prev => [productWithId, ...prev]);
+        const productWithId = { ...productWithOrder, id: Date.now().toString() };
+        setProducts(prev => [...prev, productWithId]);
       }
     } else {
-      const productWithId = { ...newProduct, id: Date.now().toString() };
-      setProducts(prev => [productWithId, ...prev]);
+      const productWithId = { ...productWithOrder, id: Date.now().toString() };
+      setProducts(prev => [...prev, productWithId]);
     }
   };
 
@@ -2477,8 +2539,29 @@ export default function App() {
   };
 
   const resetProducts = () => {
-    setProducts(PRODUCTS);
+    const productsWithOrder = PRODUCTS.map((p, i) => ({ ...p, order: i }));
+    setProducts(productsWithOrder);
     localStorage.removeItem('3dproducoes_products');
+  };
+
+  const handleReorderProducts = async (newProducts: Product[]) => {
+    // Update local state immediately for responsiveness
+    setProducts(newProducts);
+    
+    if (db && isAdmin && auth.currentUser) {
+      try {
+        console.log("Firestore: Atualizando ordem dos produtos...");
+        // Update each product with its new order
+        const promises = newProducts.map((p, index) => {
+          const productRef = doc(db, 'products', p.id);
+          return setDoc(productRef, { order: index }, { merge: true });
+        });
+        await Promise.all(promises);
+        console.log("Firestore: Ordem atualizada com sucesso.");
+      } catch (error) {
+        console.error("Erro ao atualizar ordem no Firestore:", error);
+      }
+    }
   };
 
   const handleRequestSubmit = (data: { type: string; description: string; contact: string }) => {
@@ -2580,7 +2663,7 @@ export default function App() {
                   onUpdateProduct={updateProduct} 
                   onDeleteProduct={deleteProduct}
                   onResetProducts={resetProducts}
-                  onReorderProducts={setProducts}
+                  onReorderProducts={handleReorderProducts}
                   onBack={() => setView('profile')}
                 />
               )}
