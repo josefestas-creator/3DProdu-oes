@@ -946,7 +946,9 @@ const CartView = ({
   onRemove, 
   onPay,
   shippingMethod,
-  setShippingMethod
+  setShippingMethod,
+  shippingAddress,
+  setShippingAddress
 }: { 
   items: CartItem[]; 
   onUpdateQuantity: (id: string, delta: number) => void; 
@@ -954,6 +956,8 @@ const CartView = ({
   onPay: () => void;
   shippingMethod: 'hand' | 'mail';
   setShippingMethod: (method: 'hand' | 'mail') => void;
+  shippingAddress: { street: string; city: string; postalCode: string };
+  setShippingAddress: (address: { street: string; city: string; postalCode: string }) => void;
 }) => {
   const subtotal = useMemo(() => items.reduce((acc, item) => acc + item.price * item.quantity, 0), [items]);
   const shippingCost = shippingMethod === 'mail' ? 4.90 : 0;
@@ -1050,6 +1054,58 @@ const CartView = ({
               </button>
             </div>
           </div>
+
+          <AnimatePresence>
+            {shippingMethod === 'mail' && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="glass-panel p-6 rounded-[2rem] space-y-4 mb-8">
+                  <h3 className="text-lg font-black text-on-surface flex items-center gap-2">
+                    <Home size={20} className="text-primary" />
+                    Dados de Envio
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Morada</label>
+                      <input 
+                        type="text"
+                        placeholder="Rua, número, andar..."
+                        value={shippingAddress.street}
+                        onChange={(e) => setShippingAddress({ ...shippingAddress, street: e.target.value })}
+                        className="w-full h-12 px-4 bg-white/50 border border-primary/10 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Localidade</label>
+                        <input 
+                          type="text"
+                          placeholder="Cidade"
+                          value={shippingAddress.city}
+                          onChange={(e) => setShippingAddress({ ...shippingAddress, city: e.target.value })}
+                          className="w-full h-12 px-4 bg-white/50 border border-primary/10 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-1">Código Postal</label>
+                        <input 
+                          type="text"
+                          placeholder="0000-000"
+                          value={shippingAddress.postalCode}
+                          onChange={(e) => setShippingAddress({ ...shippingAddress, postalCode: e.target.value })}
+                          className="w-full h-12 px-4 bg-white/50 border border-primary/10 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </>
       )}
 
@@ -2262,6 +2318,11 @@ export default function App() {
   };
 
   const [mbWayPhone, setMbWayPhone] = useState('');
+  const [shippingAddress, setShippingAddress] = useState({
+    street: '',
+    city: '',
+    postalCode: ''
+  });
   const [showMBWayModal, setShowMBWayModal] = useState(false);
 
   const handleMBWayPay = () => {
@@ -2282,6 +2343,19 @@ export default function App() {
       return;
     }
 
+    if (shippingMethod === 'mail') {
+      if (!shippingAddress.street || !shippingAddress.city || !shippingAddress.postalCode) {
+        setModal({
+          show: true,
+          title: "Dados de Envio",
+          message: "Por favor, preencha todos os campos da morada para o envio por correio.",
+          type: 'alert'
+        });
+        setShowMBWayModal(false);
+        return;
+      }
+    }
+
     setModal({
       show: true,
       title: "Pagamento MB Way",
@@ -2292,6 +2366,7 @@ export default function App() {
     setView('shop');
     setShowMBWayModal(false);
     setMbWayPhone('');
+    setShippingAddress({ street: '', city: '', postalCode: '' });
   };
 
   const handleGoogleLogin = async () => {
@@ -2775,6 +2850,8 @@ export default function App() {
                   onPay={handleMBWayPay}
                   shippingMethod={shippingMethod}
                   setShippingMethod={setShippingMethod}
+                  shippingAddress={shippingAddress}
+                  setShippingAddress={setShippingAddress}
                 />
               )}
               {view === 'product_detail' && selectedProduct && (
