@@ -36,7 +36,9 @@ import {
   Eye,
   EyeOff,
   ClipboardList,
-  Send
+  Send,
+  HandHelping,
+  Truck
 } from 'lucide-react';
 import { Product, ViewState, CartItem } from './types';
 import { PRODUCTS, REVIEWS } from './constants';
@@ -942,14 +944,20 @@ const CartView = ({
   items, 
   onUpdateQuantity, 
   onRemove, 
-  onPay 
+  onPay,
+  shippingMethod,
+  setShippingMethod
 }: { 
   items: CartItem[]; 
   onUpdateQuantity: (id: string, delta: number) => void; 
   onRemove: (id: string) => void;
   onPay: () => void;
+  shippingMethod: 'hand' | 'mail';
+  setShippingMethod: (method: 'hand' | 'mail') => void;
 }) => {
-  const total = useMemo(() => items.reduce((acc, item) => acc + item.price * item.quantity, 0), [items]);
+  const subtotal = useMemo(() => items.reduce((acc, item) => acc + item.price * item.quantity, 0), [items]);
+  const shippingCost = shippingMethod === 'mail' ? 4.90 : 0;
+  const total = subtotal + shippingCost;
 
   return (
     <motion.div 
@@ -970,47 +978,96 @@ const CartView = ({
           <p className="text-on-surface-variant font-medium">O seu carrinho está vazio.</p>
         </div>
       ) : (
-        <div className="space-y-4 mb-8">
-          {items.map(item => (
-            <div key={item.id} className="glass-card p-4 rounded-2xl flex gap-4 items-center">
-              <div className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0">
-                <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-              </div>
-              <div className="flex-grow">
-                <h4 className="font-bold text-sm text-on-surface">{item.name}</h4>
-                <p className="text-primary font-bold text-sm">€{item.price.toFixed(2)}</p>
-                <div className="flex items-center gap-3 mt-2">
-                  <button 
-                    onClick={() => onUpdateQuantity(item.id, -1)}
-                    className="w-8 h-8 rounded-lg bg-primary/5 flex items-center justify-center text-primary active:scale-90 transition-all"
-                  >
-                    <Minus size={16} />
-                  </button>
-                  <span className="text-sm font-bold w-4 text-center">{item.quantity}</span>
-                  <button 
-                    onClick={() => onUpdateQuantity(item.id, 1)}
-                    className="w-8 h-8 rounded-lg bg-primary/5 flex items-center justify-center text-primary active:scale-90 transition-all"
-                  >
-                    <Plus size={16} />
-                  </button>
+        <>
+          <div className="space-y-4 mb-8">
+            {items.map(item => (
+              <div key={item.id} className="glass-card p-4 rounded-2xl flex gap-4 items-center">
+                <div className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0">
+                  <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 </div>
+                <div className="flex-grow">
+                  <h4 className="font-bold text-sm text-on-surface">{item.name}</h4>
+                  <p className="text-primary font-bold text-sm">€{item.price.toFixed(2)}</p>
+                  <div className="flex items-center gap-3 mt-2">
+                    <button 
+                      onClick={() => onUpdateQuantity(item.id, -1)}
+                      className="w-8 h-8 rounded-lg bg-primary/5 flex items-center justify-center text-primary active:scale-90 transition-all"
+                    >
+                      <Minus size={16} />
+                    </button>
+                    <span className="text-sm font-bold w-4 text-center">{item.quantity}</span>
+                    <button 
+                      onClick={() => onUpdateQuantity(item.id, 1)}
+                      className="w-8 h-8 rounded-lg bg-primary/5 flex items-center justify-center text-primary active:scale-90 transition-all"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => onRemove(item.id)}
+                  className="p-2 text-error hover:bg-error/5 rounded-full transition-colors"
+                >
+                  <Trash2 size={20} className="text-red-500" />
+                </button>
               </div>
+            ))}
+          </div>
+
+          <div className="mb-8 space-y-4">
+            <h3 className="text-lg font-black text-on-surface ml-1">Método de Entrega</h3>
+            <div className="grid grid-cols-1 gap-3">
               <button 
-                onClick={() => onRemove(item.id)}
-                className="p-2 text-error hover:bg-error/5 rounded-full transition-colors"
+                onClick={() => setShippingMethod('hand')}
+                className={`p-4 rounded-2xl border-2 transition-all flex items-center justify-between ${shippingMethod === 'hand' ? 'border-primary bg-primary/5' : 'border-primary/10 bg-white/30'}`}
               >
-                <Trash2 size={20} className="text-red-500" />
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${shippingMethod === 'hand' ? 'bg-primary text-white' : 'bg-primary/10 text-primary'}`}>
+                    <HandHelping size={20} />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-bold text-sm">Entregue em mão</p>
+                    <p className="text-[10px] text-on-surface-variant uppercase font-bold">Grátis</p>
+                  </div>
+                </div>
+                {shippingMethod === 'hand' && <CheckCircle2 size={20} className="text-primary" />}
+              </button>
+
+              <button 
+                onClick={() => setShippingMethod('mail')}
+                className={`p-4 rounded-2xl border-2 transition-all flex items-center justify-between ${shippingMethod === 'mail' ? 'border-primary bg-primary/5' : 'border-primary/10 bg-white/30'}`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${shippingMethod === 'mail' ? 'bg-primary text-white' : 'bg-primary/10 text-primary'}`}>
+                    <Truck size={20} />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-bold text-sm">Envio por correio</p>
+                    <p className="text-[10px] text-on-surface-variant uppercase font-bold">+ €4.90</p>
+                  </div>
+                </div>
+                {shippingMethod === 'mail' && <CheckCircle2 size={20} className="text-primary" />}
               </button>
             </div>
-          ))}
-        </div>
+          </div>
+        </>
       )}
 
       {items.length > 0 && (
         <div className="glass-panel p-6 rounded-[2rem] space-y-6">
-          <div className="flex justify-between items-center">
-            <span className="text-on-surface-variant font-medium">Total da Encomenda</span>
-            <span className="text-2xl font-black text-on-surface">€{total.toFixed(2)}</span>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-on-surface-variant font-medium">Subtotal</span>
+              <span className="font-bold text-on-surface">€{subtotal.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-on-surface-variant font-medium">Custo de Envio</span>
+              <span className="font-bold text-on-surface">€{shippingCost.toFixed(2)}</span>
+            </div>
+            <div className="pt-2 border-t border-primary/10 flex justify-between items-center">
+              <span className="text-on-surface-variant font-bold">Total</span>
+              <span className="text-2xl font-black text-primary">€{total.toFixed(2)}</span>
+            </div>
           </div>
           
           <button 
@@ -1445,7 +1502,9 @@ const AdminView = ({
   onDeleteProduct, 
   onResetProducts,
   onReorderProducts,
-  onBack
+  onBack,
+  statusMessage,
+  setStatusMessage
 }: { 
   products: Product[]; 
   onAddProduct: (p: Omit<Product, 'id'>) => void; 
@@ -1454,10 +1513,11 @@ const AdminView = ({
   onResetProducts: () => void;
   onReorderProducts: (products: Product[]) => void;
   onBack: () => void;
+  statusMessage: string | null;
+  setStatusMessage: (msg: string | null) => void;
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   
@@ -1940,6 +2000,7 @@ export default function App() {
     const saved = localStorage.getItem('3dproducoes_cart');
     return saved ? JSON.parse(saved) : [];
   });
+  const [shippingMethod, setShippingMethod] = useState<'hand' | 'mail'>('hand');
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     return sessionStorage.getItem('3dproducoes_isLoggedIn') === 'true';
   });
@@ -1947,6 +2008,9 @@ export default function App() {
     return sessionStorage.getItem('3dproducoes_userEmail') || '';
   });
   const [isAdmin, setIsAdmin] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const cartSubtotal = useMemo(() => cart.reduce((acc, item) => acc + item.price * item.quantity, 0), [cart]);
+  const cartTotal = cartSubtotal + (shippingMethod === 'mail' ? 4.90 : 0);
   const [users, setUsers] = useState<{ email: string; password: string; name?: string }[]>(() => {
     let initialUsers = [];
     try {
@@ -1997,7 +2061,8 @@ export default function App() {
     }
 
     console.log("Firestore: Iniciando sincronização de produtos...");
-    const q = query(collection(db, 'products'), orderBy('order', 'asc'));
+    // Fetch all products and sort them locally to ensure products without 'order' field are not hidden
+    const q = query(collection(db, 'products'));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const firestoreProducts: Product[] = [];
@@ -2005,6 +2070,14 @@ export default function App() {
         firestoreProducts.push({ id: doc.id, ...doc.data() } as Product);
       });
       
+      // Sort locally: products with order first, then by name
+      firestoreProducts.sort((a, b) => {
+        const orderA = a.order ?? 999;
+        const orderB = b.order ?? 999;
+        if (orderA !== orderB) return orderA - orderB;
+        return a.name.localeCompare(b.name);
+      });
+
       if (firestoreProducts.length > 0) {
         console.log("Firestore: Produtos carregados com sucesso.");
         setProducts(firestoreProducts);
@@ -2538,10 +2611,35 @@ export default function App() {
     });
   };
 
-  const resetProducts = () => {
+  const resetProducts = async () => {
     const productsWithOrder = PRODUCTS.map((p, i) => ({ ...p, order: i }));
     setProducts(productsWithOrder);
     localStorage.removeItem('3dproducoes_products');
+
+    // If admin, also try to restore them to Firestore
+    if (db && isAdmin && auth.currentUser) {
+      setModal({
+        show: true,
+        title: "Restaurar Fotos",
+        message: "Deseja também repor as fotos originais no banco de dados?",
+        type: 'confirm',
+        onConfirm: async () => {
+          try {
+            console.log("Firestore: Restaurando fotos originais...");
+            for (const product of productsWithOrder) {
+              const { id, ...data } = product;
+              // Use setDoc with a fixed ID or addDoc. To avoid duplicates, we'll use addDoc
+              await addDoc(collection(db, 'products'), data);
+            }
+            setModal(prev => ({ ...prev, show: false }));
+            setStatusMessage("Fotos originais repostas com sucesso!");
+            setTimeout(() => setStatusMessage(null), 3000);
+          } catch (error) {
+            console.error("Erro ao restaurar fotos:", error);
+          }
+        }
+      });
+    }
   };
 
   const handleReorderProducts = async (newProducts: Product[]) => {
@@ -2665,6 +2763,8 @@ export default function App() {
                   onResetProducts={resetProducts}
                   onReorderProducts={handleReorderProducts}
                   onBack={() => setView('profile')}
+                  statusMessage={statusMessage}
+                  setStatusMessage={setStatusMessage}
                 />
               )}
               {view === 'cart' && (
@@ -2673,6 +2773,8 @@ export default function App() {
                   onUpdateQuantity={updateQuantity} 
                   onRemove={removeFromCart}
                   onPay={handleMBWayPay}
+                  shippingMethod={shippingMethod}
+                  setShippingMethod={setShippingMethod}
                 />
               )}
               {view === 'product_detail' && selectedProduct && (
@@ -2715,7 +2817,14 @@ export default function App() {
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="glass-panel p-8 rounded-[2.5rem] w-full max-w-sm relative z-10 shadow-2xl border border-white/40"
             >
-              <h3 className="text-xl font-black mb-2 text-on-surface">Pagamento MB Way</h3>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-black text-on-surface">Pagamento MB Way</h3>
+                <div className="text-right">
+                  <p className="text-[10px] font-bold text-outline uppercase tracking-widest">Total a pagar</p>
+                  <p className="text-xl font-black text-primary">€{cartTotal.toFixed(2)}</p>
+                </div>
+              </div>
+              
               <p className="text-on-surface-variant text-sm mb-6 leading-relaxed">Introduza o seu número de telemóvel associado ao MB Way:</p>
               
               <input 

@@ -9,7 +9,12 @@ export const PRODUCTS: Product[] = [
     category: 'Decoração',
     description: 'Peça decorativa com design orgânico, impressa em PLA biodegradável de alta qualidade.',
     rating: 4.8,
-    reviewCount: 124
+    reviewCount: 124,
+    triptychImages: [
+      'https://picsum.photos/seed/vase1/800/1000',
+      'https://picsum.photos/seed/vase2/800/1000',
+      'https://picsum.photos/seed/vase3/800/1000'
+    ]
   },
   {
     id: '2',
@@ -19,7 +24,12 @@ export const PRODUCTS: Product[] = [
     category: 'Utilitário',
     description: 'Suporte versátil e resistente para dispositivos móveis, com múltiplos ângulos de ajuste.',
     rating: 4.5,
-    reviewCount: 89
+    reviewCount: 89,
+    triptychImages: [
+      'https://picsum.photos/seed/support1/800/1000',
+      'https://picsum.photos/seed/support2/800/1000',
+      'https://picsum.photos/seed/support3/800/1000'
+    ]
   },
   {
     id: '3',
@@ -29,7 +39,12 @@ export const PRODUCTS: Product[] = [
     category: 'Escritório',
     description: 'Organizador modular em formato hexagonal, perfeito para manter a sua secretária impecável.',
     rating: 4.9,
-    reviewCount: 56
+    reviewCount: 56,
+    triptychImages: [
+      'https://picsum.photos/seed/organizer1/800/1000',
+      'https://picsum.photos/seed/organizer2/800/1000',
+      'https://picsum.photos/seed/organizer3/800/1000'
+    ]
   },
   {
     id: '4',
@@ -39,7 +54,12 @@ export const PRODUCTS: Product[] = [
     category: 'Iluminação',
     description: 'Luminária de mesa com design minimalista low poly, cria um ambiente acolhedor e moderno.',
     rating: 4.7,
-    reviewCount: 210
+    reviewCount: 210,
+    triptychImages: [
+      'https://picsum.photos/seed/lamp1/800/1000',
+      'https://picsum.photos/seed/lamp2/800/1000',
+      'https://picsum.photos/seed/lamp3/800/1000'
+    ]
   }
 ];
 
