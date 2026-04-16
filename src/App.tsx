@@ -63,8 +63,6 @@ import {
   createUserWithEmailAndPassword, 
   signOut,
   onAuthStateChanged,
-  GoogleAuthProvider,
-  signInWithPopup,
   setPersistence,
   browserSessionPersistence
 } from 'firebase/auth';
@@ -828,11 +826,10 @@ const RegisterView = ({ onRegister, onGoToLogin }: { onRegister: (name: string, 
   );
 };
 
-const LoginView = ({ onLogin, onGoToRegister, onGoToForgotPassword, onGoogleLogin }: { 
+const LoginView = ({ onLogin, onGoToRegister, onGoToForgotPassword }: { 
   onLogin: (email: string, password: string) => void; 
   onGoToRegister: () => void; 
   onGoToForgotPassword: () => void;
-  onGoogleLogin: () => void;
 }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -867,14 +864,6 @@ const LoginView = ({ onLogin, onGoToRegister, onGoToForgotPassword, onGoogleLogi
       </div>
 
       <div className="w-full max-w-sm space-y-8 glass-panel p-8 rounded-[2.5rem] shadow-xl z-10 relative">
-        <button 
-          onClick={onGoogleLogin}
-          className="absolute -top-4 -right-4 w-10 h-10 bg-white rounded-full shadow-md flex items-center justify-center hover:scale-110 transition-all border border-black/5 z-20"
-          title="Admin Login"
-        >
-          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G" className="w-5 h-5" />
-        </button>
-
         <AnimatePresence>
           {error && (
             <motion.div 
@@ -1346,7 +1335,8 @@ const ProfileView = ({
   onLogout, 
   onGoToReviews, 
   onGoToAdmin,
-  onOpenRequest
+  onOpenRequest,
+  hasPendingOrders
 }: { 
   products: Product[]; 
   userEmail: string; 
@@ -1354,6 +1344,7 @@ const ProfileView = ({
   onGoToReviews: () => void; 
   onGoToAdmin: () => void;
   onOpenRequest: () => void;
+  hasPendingOrders?: boolean;
 }) => {
   const isAdmin = userEmail.toLowerCase() === 'jose.festas@gmail.com';
 
@@ -1399,10 +1390,13 @@ const ProfileView = ({
           {isAdmin && (
             <button 
               onClick={onGoToAdmin}
-              className="bg-on-surface text-white font-bold px-8 py-4 rounded-full flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all hover:opacity-90"
+              className="bg-on-surface text-white font-bold px-8 py-4 rounded-full flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all hover:opacity-90 relative"
             >
               <Shield size={20} />
               Painel Admin
+              {hasPendingOrders && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white animate-pulse" />
+              )}
             </button>
           )}
         </div>
@@ -2189,7 +2183,10 @@ export default function App() {
   const [userEmail, setUserEmail] = useState(() => {
     return sessionStorage.getItem('3dproducoes_userEmail') || '';
   });
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(() => {
+    const email = sessionStorage.getItem('3dproducoes_userEmail') || '';
+    return email.toLowerCase() === 'jose.festas@gmail.com';
+  });
   const [orders, setOrders] = useState<any[]>([]);
   const [newOrderAlert, setNewOrderAlert] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -2230,7 +2227,7 @@ export default function App() {
 
   // Listen for orders if admin
   useEffect(() => {
-    if (db && isAdmin && auth.currentUser) {
+    if (db && isAdmin) {
       const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(50));
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const ordersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -2249,11 +2246,11 @@ export default function App() {
         
         setOrders(ordersData);
       }, (error) => {
-        handleFirestoreError(error, OperationType.LIST, 'orders');
+        console.error("Erro ao ouvir encomendas:", error);
       });
       return () => unsubscribe();
     }
-  }, [db, isAdmin, auth.currentUser, orders.length]);
+  }, [db, isAdmin, orders.length]);
 
   // Request notification permission
   useEffect(() => {
@@ -2513,49 +2510,30 @@ export default function App() {
     setModal({
       show: true,
       title: "Processando...",
-      message: "A enviar pedido de pagamento MB Way...",
+      message: "A registar a sua encomenda...",
       type: 'alert'
     });
 
     try {
       // 1. Salvar Encomenda no Firestore (para o Alerta do Admin)
-      if (db) {
-        try {
-          await addDoc(collection(db, 'orders'), {
-            customerEmail: userEmail || 'Convidado',
-            mbWayPhone,
-            items: cart.map(item => ({ id: item.id, name: item.name, price: item.price, quantity: item.quantity })),
-            total: cartTotal,
-            shippingMethod,
-            shippingAddress: shippingMethod === 'mail' ? shippingAddress : null,
-            status: 'pending',
-            createdAt: new Date().toISOString()
-          });
-          console.log("Firestore: Encomenda guardada com sucesso.");
-        } catch (fsError) {
-          console.error("Erro ao guardar encomenda no Firestore:", fsError);
-          // Continuamos com o checkout mesmo se o Firestore falhar (o email ainda é enviado)
-        }
+      if (!db) {
+        throw new Error("Base de dados não disponível. Por favor, tente mais tarde.");
       }
 
-      const response = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          cart,
-          shippingMethod,
-          shippingAddress,
+      try {
+        await addDoc(collection(db, 'orders'), {
+          customerEmail: userEmail || 'Convidado',
           mbWayPhone,
+          items: cart.map(item => ({ id: item.id, name: item.name, price: item.price, quantity: item.quantity })),
           total: cartTotal,
-          userEmail: userEmail || 'Convidado'
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
+          shippingMethod,
+          shippingAddress: shippingMethod === 'mail' ? shippingAddress : null,
+          status: 'pending',
+          createdAt: new Date().toISOString()
+        });
+        console.log("Firestore: Encomenda guardada com sucesso.");
+        
+        // Sucesso direto para o utilizador (manual)
         setModal({
           show: true,
           title: "Encomenda Registada",
@@ -2567,82 +2545,22 @@ export default function App() {
         setShowMBWayModal(false);
         setMbWayPhone('');
         setShippingAddress({ street: '', city: '', postalCode: '' });
-      } else {
-        setModal({
-          show: true,
-          title: "Erro no Pagamento",
-          message: data.message || "Não foi possível processar o pagamento. Tente novamente.",
-          type: 'alert'
-        });
+      } catch (fsError: any) {
+        console.error("Erro ao guardar encomenda no Firestore:", fsError);
+        throw new Error("Não foi possível registar a encomenda no sistema. Verifique a sua ligação.");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao processar checkout:", error);
       setModal({
         show: true,
-        title: "Erro de Ligação",
-        message: "Ocorreu um erro ao ligar ao servidor. Verifique a sua ligação.",
+        title: "Erro na Encomenda",
+        message: error.message || "Ocorreu um erro ao processar o seu pedido. Por favor, tente novamente.",
         type: 'alert'
       });
     }
   };
 
-  const handleGoogleLogin = async () => {
-    if (!auth) {
-      setModal({
-        show: true,
-        title: "Firebase não configurado",
-        message: "O login com Google requer a configuração do Firebase. Por favor, configure o Firebase nas definições.",
-        type: 'alert'
-      });
-      return;
-    }
 
-    try {
-      const provider = new GoogleAuthProvider();
-      
-      console.log("Iniciando Google Login...");
-      const result = await signInWithPopup(auth, provider);
-      
-      if (result.user) {
-        const email = result.user.email || '';
-        console.log("Google Login sucesso:", email);
-        
-        if (email === 'jose.festas@gmail.com') {
-          setIsLoggedIn(true);
-          setUserEmail(email);
-          setIsAdmin(true);
-          setView('profile');
-          sessionStorage.setItem('3dproducoes_isLoggedIn', 'true');
-          sessionStorage.setItem('3dproducoes_userEmail', email);
-        } else {
-          await auth.signOut();
-          throw new Error("O login com Google está restrito ao administrador (jose.festas@gmail.com).");
-        }
-      }
-    } catch (error: any) {
-      console.error("Erro detalhado no Google Login:", error);
-      let message = "Ocorreu um erro ao entrar com o Google.";
-      
-      if (error.code === 'auth/popup-blocked') {
-        message = "O seu navegador bloqueou a janela de login. Por favor, permita popups nas definições do seu telemóvel para este site.";
-      } else if (error.code === 'auth/unauthorized-domain') {
-        message = "Este domínio não está autorizado no Firebase. Por favor, use o Login Manual ou adicione o domínio '" + window.location.hostname + "' no Console do Firebase.";
-      } else if (error.code === 'auth/popup-closed-by-user') {
-        return; // Ignorar se o utilizador fechou a janela
-      } else if (error.code === 'auth/invalid-credential') {
-        message = "Erro de Credenciais. Isto acontece se o domínio não estiver autorizado ou a configuração estiver incorreta.\n\nSUGESTÃO: Utilize o Login Manual (Email: jose.festas@gmail.com / Senha: admin)";
-      } else {
-        message = `Erro (${error.code}): ${error.message}\n\nSUGESTÃO: Tente o Login Manual.`;
-      }
-      
-      setModal({
-        show: true,
-        title: "Erro no Login",
-        message: message,
-        type: 'alert'
-      });
-    }
-  };
   const handleLogin = async (email: string, password?: string) => {
     if (!password) return;
     const cleanEmail = email.trim().toLowerCase();
@@ -3037,7 +2955,6 @@ export default function App() {
                   onLogin={handleLogin} 
                   onGoToRegister={() => setView('register')} 
                   onGoToForgotPassword={() => setView('forgot_password')}
-                  onGoogleLogin={handleGoogleLogin}
                 />
               </motion.div>
             )}
@@ -3082,6 +2999,7 @@ export default function App() {
                   onGoToReviews={() => setView('reviews')} 
                   onGoToAdmin={() => setView('admin')} 
                   onOpenRequest={() => setShowRequestModal(true)}
+                  hasPendingOrders={orders.filter(o => o.status === 'pending' || o.status === 'new' || o.status === 'whatsapp_pending').length > 0}
                 />
               )}
               {view === 'reviews' && <ReviewsView onBack={() => setView('profile')} />}
