@@ -2096,7 +2096,15 @@ const AdminView = ({
               <button 
                 onClick={async () => {
                   if (db) {
-                    await updateDoc(doc(db, 'orders', order.id), { status: 'completed' });
+                    try {
+                      await updateDoc(doc(db, 'orders', order.id), { status: 'completed' });
+                      setStatusMessage("Encomenda marcada como concluída!");
+                      setTimeout(() => setStatusMessage(null), 3000);
+                    } catch (error) {
+                      console.error("Erro ao concluir encomenda:", error);
+                      setStatusMessage("Erro ao atualizar encomenda.");
+                      setTimeout(() => setStatusMessage(null), 3000);
+                    }
                   }
                 }}
                 className="flex-1 h-10 bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-primary hover:text-white transition-all"
@@ -2112,7 +2120,15 @@ const AdminView = ({
                     type: 'confirm',
                     onConfirm: async () => {
                       if (db) {
-                        await deleteDoc(doc(db, 'orders', order.id));
+                        try {
+                          await deleteDoc(doc(db, 'orders', order.id));
+                          setStatusMessage("Encomenda eliminada com sucesso!");
+                          setTimeout(() => setStatusMessage(null), 3000);
+                        } catch (error) {
+                          console.error("Erro ao eliminar encomenda:", error);
+                          setStatusMessage("Erro ao eliminar encomenda.");
+                          setTimeout(() => setStatusMessage(null), 3000);
+                        }
                       }
                       setModal(prev => ({ ...prev, show: false }));
                     }
@@ -2756,7 +2772,7 @@ export default function App() {
     const order = products.length;
     const productWithOrder = { ...newProduct, order };
     
-    if (db && isAdmin && auth.currentUser) {
+    if (db && isAdmin) {
       try {
         console.log("Firestore: Adicionando produto...");
         await addDoc(collection(db, 'products'), productWithOrder);
@@ -2773,7 +2789,7 @@ export default function App() {
   };
 
   const updateProduct = async (updatedProduct: Product) => {
-    if (db && isAdmin && auth.currentUser) {
+    if (db && isAdmin) {
       try {
         console.log("Firestore: Atualizando produto:", updatedProduct.id);
         const { id, ...data } = updatedProduct;
@@ -2803,7 +2819,7 @@ export default function App() {
       message: "Tem a certeza que deseja eliminar esta peça?",
       type: 'confirm',
       onConfirm: async () => {
-        if (db && isAdmin && auth.currentUser) {
+        if (db && isAdmin) {
           try {
             console.log("Firestore: Deletando produto:", id);
             await deleteDoc(doc(db, 'products', id));
@@ -2827,7 +2843,7 @@ export default function App() {
       message: "Tem a certeza que deseja apagar TODOS os produtos do catálogo? Esta ação não pode ser desfeita.",
       type: 'confirm',
       onConfirm: async () => {
-        if (db && isAdmin && auth.currentUser) {
+        if (db && isAdmin) {
           try {
             setStatusMessage("A apagar catálogo...");
             const querySnapshot = await getDocs(collection(db, 'products'));
@@ -2855,7 +2871,7 @@ export default function App() {
     // Update local state immediately for responsiveness
     setProducts(newProducts);
     
-    if (db && isAdmin && auth.currentUser) {
+    if (db && isAdmin) {
       try {
         console.log("Firestore: Atualizando ordem dos produtos...");
         // Update each product with its new order
