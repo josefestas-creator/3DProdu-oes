@@ -78,10 +78,8 @@ async function testConnection() {
     if (error instanceof Error && error.message.includes('the client is offline')) {
       console.error("Firestore: Erro de configuração. O cliente está offline.");
     }
-    // Skip logging for other errors, as this is simply a connection test.
   }
 }
-testConnection();
 
 // --- Firestore Error Handling ---
 enum OperationType {
@@ -2187,21 +2185,38 @@ class ErrorBoundary extends React.Component<any, any> {
 }
 
 export default function App() {
-  const [view, setView] = useState<ViewState>('profile');
+  const [view, setView] = useState<ViewState>(() => {
+    try {
+      const saved = sessionStorage.getItem('3dproducoes_view');
+      return (saved as ViewState) || 'landing';
+    } catch (e) { return 'landing'; }
+  });
   const [cart, setCart] = useState<CartItem[]>(() => {
     const saved = localStorage.getItem('3dproducoes_cart');
     return saved ? JSON.parse(saved) : [];
   });
   const [shippingMethod, setShippingMethod] = useState<'hand' | 'mail'>('hand');
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    return sessionStorage.getItem('3dproducoes_isLoggedIn') === 'true';
+    try {
+      return sessionStorage.getItem('3dproducoes_isLoggedIn') === 'true';
+    } catch (e) {
+      return false;
+    }
   });
   const [userEmail, setUserEmail] = useState(() => {
-    return sessionStorage.getItem('3dproducoes_userEmail') || '';
+    try {
+      return sessionStorage.getItem('3dproducoes_userEmail') || '';
+    } catch (e) {
+      return '';
+    }
   });
   const [isAdmin, setIsAdmin] = useState(() => {
-    const email = sessionStorage.getItem('3dproducoes_userEmail') || '';
-    return email.toLowerCase() === 'jose.festas@gmail.com';
+    try {
+      const email = sessionStorage.getItem('3dproducoes_userEmail') || '';
+      return email.toLowerCase() === 'jose.festas@gmail.com';
+    } catch (e) {
+      return false;
+    }
   });
   const [orders, setOrders] = useState<any[]>([]);
   const [newOrderAlert, setNewOrderAlert] = useState(false);
@@ -2248,31 +2263,26 @@ export default function App() {
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const ordersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
-        // Check if there's a new order compared to previous state
-        if (orders.length > 0 && ordersData.length > orders.length) {
-          const latestOrder = ordersData[0] as any;
-          if (latestOrder.status === 'pending' || latestOrder.status === 'new') {
-            setNewOrderAlert(true);
-            // Play a sound or show a persistent notification
-            if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification('Nova Encomenda!', { body: `Recebeu uma nova encomenda de €${latestOrder.total.toFixed(2)}` });
+        setOrders(prevOrders => {
+          // Check if there's a new order compared to previous state
+          if (prevOrders.length > 0 && ordersData.length > prevOrders.length) {
+            const latestOrder = ordersData[0] as any;
+            if (latestOrder.status === 'pending' || latestOrder.status === 'new' || latestOrder.status === 'whatsapp_pending') {
+              setNewOrderAlert(true);
             }
           }
-        }
-        
-        setOrders(ordersData);
+          return ordersData;
+        });
       }, (error) => {
         console.error("Erro ao ouvir encomendas:", error);
       });
       return () => unsubscribe();
     }
-  }, [db, isAdmin, orders.length]);
+  }, [db, isAdmin]);
 
-  // Request notification permission
+  // Test Connection on Mount
   useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
+    testConnection();
   }, []);
 
   // Firestore Products Sync
@@ -2949,7 +2959,7 @@ export default function App() {
       <AnimatePresence mode="wait">
         {!isLoggedIn ? (
           <>
-            {(view === 'landing' || view === 'profile') && (
+            {(view === 'landing' || view === 'profile' || view === 'shop' || view === 'cart' || view === 'product_detail') && (
               <motion.div key="landing" className="w-full">
                 <LandingView 
                   onGoToLogin={() => setView('login')} 
