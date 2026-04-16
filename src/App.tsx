@@ -2599,8 +2599,6 @@ export default function App() {
 
     try {
       const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' });
-      if (!auth) throw new Error("Firebase não inicializado.");
       
       console.log("Iniciando Google Login...");
       const result = await signInWithPopup(auth, provider);
@@ -2625,21 +2623,21 @@ export default function App() {
       console.error("Erro detalhado no Google Login:", error);
       let message = "Ocorreu um erro ao entrar com o Google.";
       
-      if (error.code === 'auth/api-key-not-valid') {
-        message = "A chave API do Firebase é inválida. Verifique as configurações no Console do Firebase.";
-      } else if (error.code === 'auth/invalid-credential') {
-        message = "Erro de Credenciais (auth/invalid-credential). Isto pode dever-se a uma configuração incorreta no Firebase ou ao domínio não estar autorizado. \n\nSUGESTÃO: Tente o Login Manual com Email: jose.festas@gmail.com e Senha: admin";
-      } else if (error.code === 'auth/popup-blocked') {
-        message = "O popup de login foi bloqueado pelo seu navegador. Por favor, permita popups para este site.";
+      if (error.code === 'auth/popup-blocked') {
+        message = "O seu navegador bloqueou a janela de login. Por favor, permita popups nas definições do seu telemóvel para este site.";
       } else if (error.code === 'auth/unauthorized-domain') {
-        message = "Este domínio não está autorizado no Firebase. Adicione '" + window.location.hostname + "' aos domínios autorizados no Console do Firebase.";
-      } else if (error.message) {
-        message = error.message;
+        message = "Este domínio não está autorizado no Firebase. Por favor, use o Login Manual ou adicione o domínio '" + window.location.hostname + "' no Console do Firebase.";
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        return; // Ignorar se o utilizador fechou a janela
+      } else if (error.code === 'auth/invalid-credential') {
+        message = "Erro de Credenciais. Isto acontece se o domínio não estiver autorizado ou a configuração estiver incorreta.\n\nSUGESTÃO: Utilize o Login Manual (Email: jose.festas@gmail.com / Senha: admin)";
+      } else {
+        message = `Erro (${error.code}): ${error.message}\n\nSUGESTÃO: Tente o Login Manual.`;
       }
       
       setModal({
         show: true,
-        title: "Erro de Autenticação",
+        title: "Erro no Login",
         message: message,
         type: 'alert'
       });
