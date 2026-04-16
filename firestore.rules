@@ -44,6 +44,14 @@ service cloud.firestore {
              data.category is string;
     }
 
+    function isValidOrder(data) {
+      return data.mbWayPhone is string &&
+             data.items is list &&
+             data.total is number &&
+             data.status is string &&
+             data.createdAt is string;
+    }
+
     // ===============================================================
     // Collection Rules
     // ===============================================================
@@ -56,6 +64,18 @@ service cloud.firestore {
       // Only admin can create, update, or delete products
       allow create, update: if isAdmin() && isValidProduct(request.resource.data);
       allow delete: if isAdmin();
+    }
+
+    // Orders Collection
+    match /orders/{orderId} {
+      // Only admin can read and list orders
+      allow read, list: if isAdmin();
+      
+      // Anyone can create an order (checkout)
+      allow create: if isValidOrder(request.resource.data);
+      
+      // Only admin can update order status or delete
+      allow update, delete: if isAdmin();
     }
 
     // Test Collection (for connection test)

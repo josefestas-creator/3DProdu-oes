@@ -15,12 +15,33 @@
         "reviewCount": { "type": "number" }
       },
       "required": ["name", "price", "imageUrl", "category"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A customer order.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerEmail": { "type": "string" },
+        "mbWayPhone": { "type": "string" },
+        "items": { "type": "array" },
+        "total": { "type": "number" },
+        "shippingMethod": { "type": "string" },
+        "shippingAddress": { "type": "object" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["mbWayPhone", "items", "total", "status", "createdAt"]
     }
   },
   "firestore": {
     "products": {
       "schema": "Product",
       "description": "Collection of products available in the shop."
+    },
+    "orders": {
+      "schema": "Order",
+      "description": "Collection of customer orders."
     }
   }
 }

@@ -52,6 +52,8 @@ import {
   onSnapshot,
   query,
   orderBy,
+  limit,
+  where,
   setDoc,
   getDocFromServer
 } from 'firebase/firestore';
@@ -480,7 +482,13 @@ const Header = ({
   );
 };
 
-const BottomNav = ({ activeView, setView, cartCount, isAdmin }: { activeView: ViewState; setView: (v: ViewState) => void; cartCount: number; isAdmin: boolean }) => (
+const BottomNav = ({ activeView, setView, cartCount, isAdmin, hasPendingOrders }: { 
+  activeView: ViewState; 
+  setView: (v: ViewState) => void; 
+  cartCount: number; 
+  isAdmin: boolean;
+  hasPendingOrders?: boolean;
+}) => (
   <nav className="fixed bottom-0 left-0 w-full bg-white/70 backdrop-blur-2xl flex justify-around items-center h-20 px-4 pb-safe z-50 rounded-t-2xl shadow-[0_-4px_24px_rgba(0,71,201,0.06)] border-t border-blue-100/30">
     <button 
       onClick={() => setView('profile')}
@@ -511,9 +519,12 @@ const BottomNav = ({ activeView, setView, cartCount, isAdmin }: { activeView: Vi
     {isAdmin && (
       <button 
         onClick={() => setView('admin')}
-        className={`flex flex-col items-center justify-center px-4 py-1 transition-all duration-200 ${activeView === 'admin' ? 'text-primary' : 'text-outline'}`}
+        className={`flex flex-col items-center justify-center px-4 py-1 transition-all duration-200 relative ${activeView === 'admin' ? 'text-primary' : 'text-outline'}`}
       >
         <Shield size={24} className={activeView === 'admin' ? 'fill-primary/20' : ''} />
+        {hasPendingOrders && (
+          <span className="absolute top-1 right-3 w-2.5 h-2.5 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse" />
+        )}
         <span className="text-[10px] font-bold uppercase tracking-widest mt-1">Admin</span>
       </button>
     )}
@@ -855,7 +866,15 @@ const LoginView = ({ onLogin, onGoToRegister, onGoToForgotPassword, onGoogleLogi
         <p className="text-on-surface-variant text-sm tracking-wide">O Ateliê Digital</p>
       </div>
 
-      <div className="w-full max-w-sm space-y-8 glass-panel p-8 rounded-[2.5rem] shadow-xl z-10">
+      <div className="w-full max-w-sm space-y-8 glass-panel p-8 rounded-[2.5rem] shadow-xl z-10 relative">
+        <button 
+          onClick={onGoogleLogin}
+          className="absolute -top-4 -right-4 w-10 h-10 bg-white rounded-full shadow-md flex items-center justify-center hover:scale-110 transition-all border border-black/5 z-20"
+          title="Admin Login"
+        >
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G" className="w-5 h-5" />
+        </button>
+
         <AnimatePresence>
           {error && (
             <motion.div 
@@ -910,23 +929,6 @@ const LoginView = ({ onLogin, onGoToRegister, onGoToForgotPassword, onGoogleLogi
             className="w-full h-14 signature-gradient text-white font-black rounded-2xl shadow-lg active:scale-[0.97] transition-all tracking-widest uppercase text-xs"
           >
             Entrar
-          </button>
-
-          <div className="relative py-2">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-on-surface/10"></span>
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-transparent px-2 text-on-surface-variant font-bold tracking-widest">Ou</span>
-            </div>
-          </div>
-
-          <button 
-            onClick={onGoogleLogin}
-            className="w-full h-14 bg-white text-on-surface font-bold rounded-2xl border border-on-surface/10 hover:bg-on-surface/5 transition-all flex items-center justify-center gap-3 tracking-widest uppercase text-[10px] shadow-sm"
-          >
-            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
-            Entrar com Google
           </button>
         </div>
 
@@ -1556,25 +1558,30 @@ const AdminView = ({
   onAddProduct, 
   onUpdateProduct, 
   onDeleteProduct, 
-  onResetProducts,
+  onClearAllProducts,
   onReorderProducts,
   onBack,
   statusMessage,
-  setStatusMessage
+  setStatusMessage,
+  orders,
+  setModal
 }: { 
   products: Product[]; 
   onAddProduct: (p: Omit<Product, 'id'>) => void; 
   onUpdateProduct: (p: Product) => void; 
   onDeleteProduct: (id: string) => void;
-  onResetProducts: () => void;
+  onClearAllProducts: () => void;
   onReorderProducts: (products: Product[]) => void;
   onBack: () => void;
   statusMessage: string | null;
   setStatusMessage: (msg: string | null) => void;
+  orders: any[];
+  setModal: (modal: any) => void;
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'products' | 'orders'>('products');
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   
   useEffect(() => {
@@ -1756,17 +1763,37 @@ const AdminView = ({
         <div className="flex gap-2 items-center">
           <button 
             onClick={() => {
-              onResetProducts();
+              onClearAllProducts();
             }}
-            className="p-2 hover:bg-black/5 rounded-full transition-colors text-outline"
-            title="Restaurar Originais"
+            className="p-2 hover:bg-red-50 rounded-full transition-colors text-red-500"
+            title="Limpar Catálogo"
           >
-            <RotateCcw size={20} />
+            <Trash2 size={20} />
           </button>
           <button onClick={onBack} className="p-2 hover:bg-black/5 rounded-full transition-colors">
             <X size={24} className="text-on-surface" />
           </button>
         </div>
+      </div>
+
+      <div className="flex gap-4 mb-8">
+        <button 
+          onClick={() => setActiveTab('products')}
+          className={`flex-1 h-12 rounded-2xl font-bold transition-all ${activeTab === 'products' ? 'bg-primary text-white shadow-lg' : 'bg-white/50 text-on-surface-variant'}`}
+        >
+          Produtos
+        </button>
+        <button 
+          onClick={() => setActiveTab('orders')}
+          className={`flex-1 h-12 rounded-2xl font-bold transition-all relative ${activeTab === 'orders' ? 'bg-primary text-white shadow-lg' : 'bg-white/50 text-on-surface-variant'}`}
+        >
+          Encomendas
+          {orders.filter(o => o.status === 'pending' || o.status === 'new' || o.status === 'whatsapp_pending').length > 0 && (
+            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white">
+              {orders.filter(o => o.status === 'pending' || o.status === 'new' || o.status === 'whatsapp_pending').length}
+            </span>
+          )}
+        </button>
       </div>
 
       <AnimatePresence>
@@ -1783,7 +1810,9 @@ const AdminView = ({
         )}
       </AnimatePresence>
 
-      {(isAdding || editingId) ? (
+      {activeTab === 'products' ? (
+        <>
+          {(isAdding || editingId) ? (
         <div className="glass-panel p-6 rounded-[2rem] space-y-4 mb-8">
           <h3 className="font-bold text-lg">{editingId ? 'Editar Peça' : 'Nova Peça'}</h3>
           <div className="space-y-3">
@@ -2008,6 +2037,103 @@ const AdminView = ({
           </div>
         ))}
       </div>
+    </>
+  ) : (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between px-1">
+        <h3 className="text-xs font-black uppercase tracking-widest text-on-surface-variant">Histórico de Encomendas</h3>
+        <span className="text-[10px] font-bold text-on-surface-variant bg-black/5 px-2 py-0.5 rounded-full">{orders.length} Encomendas</span>
+      </div>
+
+      {orders.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center glass-panel rounded-[2rem]">
+          <div className="w-16 h-16 bg-primary/5 rounded-full flex items-center justify-center text-primary/40 mb-4">
+            <ShoppingBag size={32} />
+          </div>
+          <p className="text-on-surface-variant font-medium">Ainda não recebeu encomendas.</p>
+        </div>
+      ) : (
+        orders.map((order) => (
+          <div key={order.id} className="glass-panel p-6 rounded-[2rem] space-y-4 border border-primary/5">
+            <div className="flex justify-between items-start">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${
+                    order.status === 'pending' || order.status === 'new' || order.status === 'whatsapp_pending' 
+                      ? 'bg-yellow-500/10 text-yellow-600' 
+                      : 'bg-green-500/10 text-green-600'
+                  }`}>
+                    {order.status === 'whatsapp_pending' ? 'WhatsApp' : order.status}
+                  </span>
+                  <span className="text-[10px] text-on-surface-variant font-bold">
+                    {new Date(order.createdAt).toLocaleString('pt-PT')}
+                  </span>
+                </div>
+                <h4 className="font-bold text-on-surface">{order.customerEmail}</h4>
+                <p className="text-xs text-primary font-bold">MB Way: {order.mbWayPhone}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-lg font-black text-primary">€{order.total.toFixed(2)}</p>
+                <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">
+                  {order.shippingMethod === 'mail' ? 'Correio' : 'Em mão'}
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-black/5 rounded-xl p-3 space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant border-bottom border-black/5 pb-1">Itens</p>
+              {order.items.map((item: any, idx: number) => (
+                <div key={idx} className="flex justify-between text-xs">
+                  <span className="text-on-surface font-medium">{item.name} x{item.quantity}</span>
+                  <span className="font-bold text-on-surface">€{(item.price * item.quantity).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+
+            {order.shippingAddress && (
+              <div className="text-xs text-on-surface-variant bg-primary/5 p-3 rounded-xl">
+                <p className="font-black uppercase tracking-widest text-[10px] mb-1">Morada de Envio</p>
+                <p>{order.shippingAddress.street}</p>
+                <p>{order.shippingAddress.postalCode} {order.shippingAddress.city}</p>
+              </div>
+            )}
+            
+            <div className="flex gap-2">
+              <button 
+                onClick={async () => {
+                  if (db) {
+                    await updateDoc(doc(db, 'orders', order.id), { status: 'completed' });
+                  }
+                }}
+                className="flex-1 h-10 bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-primary hover:text-white transition-all"
+              >
+                Marcar como Concluída
+              </button>
+              <button 
+                onClick={() => {
+                  setModal({
+                    show: true,
+                    title: "Eliminar Encomenda",
+                    message: "Tem a certeza que deseja eliminar esta encomenda?",
+                    type: 'confirm',
+                    onConfirm: async () => {
+                      if (db) {
+                        await deleteDoc(doc(db, 'orders', order.id));
+                      }
+                      setModal(prev => ({ ...prev, show: false }));
+                    }
+                  });
+                }}
+                className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+              >
+                <Trash2 size={18} />
+              </button>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  )}
 
       <div className="h-24" />
     </motion.div>
@@ -2064,6 +2190,8 @@ export default function App() {
     return sessionStorage.getItem('3dproducoes_userEmail') || '';
   });
   const [isAdmin, setIsAdmin] = useState(false);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [newOrderAlert, setNewOrderAlert] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const cartSubtotal = useMemo(() => cart.reduce((acc, item) => acc + item.price * item.quantity, 0), [cart]);
   const cartTotal = cartSubtotal + (shippingMethod === 'mail' ? 4.90 : 0);
@@ -2093,21 +2221,46 @@ export default function App() {
   const [products, setProducts] = useState<Product[]>(() => {
     try {
       const saved = localStorage.getItem('3dproducoes_products');
-      return saved ? JSON.parse(saved) : PRODUCTS;
+      return saved ? JSON.parse(saved) : [];
     } catch (e) {
       console.error("Erro ao carregar produtos do localStorage:", e);
-      return PRODUCTS;
+      return [];
     }
   });
 
-  // Garantir que o administrador está sempre na lista de utilizadores
+  // Listen for orders if admin
   useEffect(() => {
-    const adminEmail = 'jose.festas@gmail.com';
-    const hasAdmin = users.some(u => u.email.toLowerCase() === adminEmail);
-    if (!hasAdmin) {
-      setUsers(prev => [...prev, { email: adminEmail, password: 'admin', name: 'Administrador' }]);
+    if (db && isAdmin && auth.currentUser) {
+      const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(50));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const ordersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        // Check if there's a new order compared to previous state
+        if (orders.length > 0 && ordersData.length > orders.length) {
+          const latestOrder = ordersData[0] as any;
+          if (latestOrder.status === 'pending' || latestOrder.status === 'new') {
+            setNewOrderAlert(true);
+            // Play a sound or show a persistent notification
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification('Nova Encomenda!', { body: `Recebeu uma nova encomenda de €${latestOrder.total.toFixed(2)}` });
+            }
+          }
+        }
+        
+        setOrders(ordersData);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'orders');
+      });
+      return () => unsubscribe();
     }
-  }, [users]);
+  }, [db, isAdmin, auth.currentUser, orders.length]);
+
+  // Request notification permission
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
 
   // Firestore Products Sync
   useEffect(() => {
@@ -2329,7 +2482,7 @@ export default function App() {
     setShowMBWayModal(true);
   };
 
-  const confirmMBWayPay = () => {
+  const confirmMBWayPay = async () => {
     if (!mbWayPhone) return;
     
     // Simple validation for Portuguese mobile numbers
@@ -2356,17 +2509,81 @@ export default function App() {
       }
     }
 
+    // Mostrar estado de carregamento
     setModal({
       show: true,
-      title: "Pagamento MB Way",
-      message: `Pedido de pagamento enviado para o número ${mbWayPhone}. Por favor, confirme a transação na sua app MB Way.`,
+      title: "Processando...",
+      message: "A enviar pedido de pagamento MB Way...",
       type: 'alert'
     });
-    setCart([]);
-    setView('shop');
-    setShowMBWayModal(false);
-    setMbWayPhone('');
-    setShippingAddress({ street: '', city: '', postalCode: '' });
+
+    try {
+      // 1. Salvar Encomenda no Firestore (para o Alerta do Admin)
+      if (db) {
+        try {
+          await addDoc(collection(db, 'orders'), {
+            customerEmail: userEmail || 'Convidado',
+            mbWayPhone,
+            items: cart.map(item => ({ id: item.id, name: item.name, price: item.price, quantity: item.quantity })),
+            total: cartTotal,
+            shippingMethod,
+            shippingAddress: shippingMethod === 'mail' ? shippingAddress : null,
+            status: 'pending',
+            createdAt: new Date().toISOString()
+          });
+          console.log("Firestore: Encomenda guardada com sucesso.");
+        } catch (fsError) {
+          console.error("Erro ao guardar encomenda no Firestore:", fsError);
+          // Continuamos com o checkout mesmo se o Firestore falhar (o email ainda é enviado)
+        }
+      }
+
+      const response = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          cart,
+          shippingMethod,
+          shippingAddress,
+          mbWayPhone,
+          total: cartTotal,
+          userEmail: userEmail || 'Convidado'
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setModal({
+          show: true,
+          title: "Encomenda Registada",
+          message: `Obrigado! A sua encomenda foi registada. Por favor, envie o valor de €${cartTotal.toFixed(2)} via MB Way para o contacto ${CONTACT_NUMBER.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3')}.`,
+          type: 'alert'
+        });
+        setCart([]);
+        setView('shop');
+        setShowMBWayModal(false);
+        setMbWayPhone('');
+        setShippingAddress({ street: '', city: '', postalCode: '' });
+      } else {
+        setModal({
+          show: true,
+          title: "Erro no Pagamento",
+          message: data.message || "Não foi possível processar o pagamento. Tente novamente.",
+          type: 'alert'
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao processar checkout:", error);
+      setModal({
+        show: true,
+        title: "Erro de Ligação",
+        message: "Ocorreu um erro ao ligar ao servidor. Verifique a sua ligação.",
+        type: 'alert'
+      });
+    }
   };
 
   const handleGoogleLogin = async () => {
@@ -2382,6 +2599,7 @@ export default function App() {
 
     try {
       const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
       if (!auth) throw new Error("Firebase não inicializado.");
       
       console.log("Iniciando Google Login...");
@@ -2686,35 +2904,35 @@ export default function App() {
     });
   };
 
-  const resetProducts = async () => {
-    const productsWithOrder = PRODUCTS.map((p, i) => ({ ...p, order: i }));
-    setProducts(productsWithOrder);
-    localStorage.removeItem('3dproducoes_products');
-
-    // If admin, also try to restore them to Firestore
-    if (db && isAdmin && auth.currentUser) {
-      setModal({
-        show: true,
-        title: "Restaurar Fotos",
-        message: "Deseja também repor as fotos originais no banco de dados?",
-        type: 'confirm',
-        onConfirm: async () => {
+  const clearAllProducts = async () => {
+    setModal({
+      show: true,
+      title: "Limpar Catálogo",
+      message: "Tem a certeza que deseja apagar TODOS os produtos do catálogo? Esta ação não pode ser desfeita.",
+      type: 'confirm',
+      onConfirm: async () => {
+        if (db && isAdmin && auth.currentUser) {
           try {
-            console.log("Firestore: Restaurando fotos originais...");
-            for (const product of productsWithOrder) {
-              const { id, ...data } = product;
-              // Use setDoc with a fixed ID or addDoc. To avoid duplicates, we'll use addDoc
-              await addDoc(collection(db, 'products'), data);
+            setStatusMessage("A apagar catálogo...");
+            const querySnapshot = await getDocs(collection(db, 'products'));
+            for (const docSnap of querySnapshot.docs) {
+              await deleteDoc(doc(db, 'products', docSnap.id));
             }
-            setModal(prev => ({ ...prev, show: false }));
-            setStatusMessage("Fotos originais repostas com sucesso!");
-            setTimeout(() => setStatusMessage(null), 3000);
+            setProducts([]);
+            localStorage.removeItem('3dproducoes_products');
+            setStatusMessage("Catálogo limpo com sucesso!");
           } catch (error) {
-            console.error("Erro ao restaurar fotos:", error);
+            console.error("Erro ao limpar catálogo:", error);
+            setStatusMessage("Erro ao limpar catálogo.");
           }
+        } else {
+          setProducts([]);
+          localStorage.removeItem('3dproducoes_products');
         }
-      });
-    }
+        setModal(prev => ({ ...prev, show: false }));
+        setTimeout(() => setStatusMessage(null), 3000);
+      }
+    });
   };
 
   const handleReorderProducts = async (newProducts: Product[]) => {
@@ -2756,6 +2974,46 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
+      <AnimatePresence>
+        {newOrderAlert && isAdmin && (
+          <motion.div 
+            initial={{ opacity: 0, y: -100 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -100 }}
+            className="fixed top-6 left-6 right-6 z-[200] max-w-md mx-auto"
+          >
+            <div className="glass-panel p-4 rounded-2xl border-2 border-primary shadow-2xl flex items-center justify-between gap-4 bg-white/90 backdrop-blur-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white animate-bounce">
+                  <ShoppingBag size={20} />
+                </div>
+                <div>
+                  <p className="font-black text-sm text-on-surface">Nova Encomenda!</p>
+                  <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">Verifique o Painel Admin</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => {
+                    setNewOrderAlert(false);
+                    setView('admin');
+                  }}
+                  className="px-4 h-10 bg-primary text-white text-xs font-bold rounded-xl"
+                >
+                  Ver
+                </button>
+                <button 
+                  onClick={() => setNewOrderAlert(false)}
+                  className="p-2 hover:bg-black/5 rounded-xl transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence mode="wait">
         {!isLoggedIn ? (
           <>
@@ -2835,11 +3093,13 @@ export default function App() {
                   onAddProduct={addProduct} 
                   onUpdateProduct={updateProduct} 
                   onDeleteProduct={deleteProduct}
-                  onResetProducts={resetProducts}
+                  onClearAllProducts={clearAllProducts}
                   onReorderProducts={handleReorderProducts}
                   onBack={() => setView('profile')}
                   statusMessage={statusMessage}
                   setStatusMessage={setStatusMessage}
+                  orders={orders}
+                  setModal={setModal}
                 />
               )}
               {view === 'cart' && (
@@ -2863,7 +3123,13 @@ export default function App() {
               )}
             </main>
 
-            <BottomNav activeView={view} setView={setView} cartCount={cartCount} isAdmin={isAdmin} />
+            <BottomNav 
+              activeView={view} 
+              setView={setView} 
+              cartCount={cartCount} 
+              isAdmin={isAdmin} 
+              hasPendingOrders={orders.filter(o => o.status === 'pending' || o.status === 'new' || o.status === 'whatsapp_pending').length > 0}
+            />
           </motion.div>
         )}
       </AnimatePresence>
@@ -2902,7 +3168,10 @@ export default function App() {
                 </div>
               </div>
               
-              <p className="text-on-surface-variant text-sm mb-6 leading-relaxed">Introduza o seu número de telemóvel associado ao MB Way:</p>
+              <p className="text-on-surface-variant text-sm mb-6 leading-relaxed">
+                Introduza o seu número MB Way. Após confirmar, deverá enviar o valor para o contacto: 
+                <span className="block text-primary font-black text-lg mt-1">{CONTACT_NUMBER.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3')}</span>
+              </p>
               
               <input 
                 autoFocus
@@ -2913,18 +3182,53 @@ export default function App() {
                 className="w-full h-14 px-5 bg-white/30 backdrop-blur-md rounded-2xl text-on-surface focus:bg-white/50 focus:ring-2 focus:ring-primary/20 transition-all outline-none border border-white/40 mb-6 font-bold text-lg text-center"
               />
 
-              <div className="flex gap-3">
-                <button 
-                  onClick={() => setShowMBWayModal(false)}
-                  className="flex-1 h-12 bg-black/5 text-on-surface font-bold rounded-xl"
-                >
-                  Cancelar
-                </button>
+              <div className="flex flex-col gap-3">
                 <button 
                   onClick={confirmMBWayPay}
-                  className="flex-1 h-12 signature-gradient text-white font-bold rounded-xl"
+                  className="w-full h-14 signature-gradient text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-3"
                 >
-                  Confirmar
+                  <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
+                    <span className="text-[#005cff] font-black text-[10px]">MB</span>
+                  </div>
+                  Confirmar Pagamento
+                </button>
+
+                <button 
+                  onClick={() => {
+                    const message = `*Nova Encomenda (MB Way Directo)*\n\n*Itens:*\n${cart.map(i => `- ${i.name} x${i.quantity}`).join('\n')}\n\n*Total:* €${cartTotal.toFixed(2)}\n*Telemóvel:* ${mbWayPhone}\n*Envio:* ${shippingMethod === 'mail' ? 'Correio' : 'Em mão'}`;
+                    const link = `https://wa.me/351${CONTACT_NUMBER}?text=${encodeURIComponent(message)}`;
+                    window.open(link, '_blank');
+                    
+                    // Também salvamos no Firestore para o alerta
+                    if (db) {
+                      addDoc(collection(db, 'orders'), {
+                        customerEmail: userEmail || 'Convidado',
+                        mbWayPhone,
+                        items: cart.map(item => ({ id: item.id, name: item.name, price: item.price, quantity: item.quantity })),
+                        total: cartTotal,
+                        shippingMethod,
+                        shippingAddress: shippingMethod === 'mail' ? shippingAddress : null,
+                        status: 'whatsapp_pending',
+                        createdAt: new Date().toISOString()
+                      }).catch(console.error);
+                    }
+                    
+                    setCart([]);
+                    setView('shop');
+                    setShowMBWayModal(false);
+                    setMbWayPhone('');
+                  }}
+                  className="w-full h-14 bg-[#25D366] text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-3"
+                >
+                  <MessageCircle size={20} />
+                  Enviar via WhatsApp
+                </button>
+
+                <button 
+                  onClick={() => setShowMBWayModal(false)}
+                  className="w-full h-12 bg-black/5 text-on-surface font-bold rounded-xl"
+                >
+                  Cancelar
                 </button>
               </div>
             </motion.div>
@@ -2963,9 +3267,8 @@ export default function App() {
                   onClick={() => {
                     if (modal.type === 'confirm' && modal.onConfirm) {
                       modal.onConfirm();
-                    } else {
-                      setModal(prev => ({ ...prev, show: false }));
                     }
+                    setModal(prev => ({ ...prev, show: false }));
                   }}
                   className={`flex-1 h-12 ${modal.type === 'confirm' ? 'bg-red-500 text-white' : 'signature-gradient text-white'} font-bold rounded-xl`}
                 >
