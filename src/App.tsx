@@ -139,12 +139,25 @@ const WHATSAPP_MESSAGE = encodeURIComponent("Olá! Gostaria de saber mais sobre 
 const WHATSAPP_LINK = `https://wa.me/351${CONTACT_NUMBER}?text=${WHATSAPP_MESSAGE}`;
 
 // --- Utils ---
-const compressImage = (base64Str: string, maxWidth = 500, maxHeight = 500, quality = 0.4): Promise<string> => {
+const compressImage = (source: string | File | Blob, maxWidth = 500, maxHeight = 500, quality = 0.4): Promise<string> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.src = base64Str;
-    img.onerror = (err) => reject(err);
+    let objectUrl: string | null = null;
+    
+    if (source instanceof File || source instanceof Blob) {
+      objectUrl = URL.createObjectURL(source);
+      img.src = objectUrl;
+    } else {
+      img.src = source;
+    }
+
+    img.onerror = (err) => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      reject(err);
+    };
+
     img.onload = () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
       const canvas = document.createElement('canvas');
       let width = img.width;
       let height = img.height;
@@ -165,7 +178,7 @@ const compressImage = (base64Str: string, maxWidth = 500, maxHeight = 500, quali
       canvas.height = height;
       const ctx = canvas.getContext('2d');
       if (!ctx) {
-        resolve(base64Str);
+        resolve(typeof source === 'string' ? source : '');
         return;
       }
       ctx.drawImage(img, 0, 0, width, height);
@@ -1658,14 +1671,11 @@ const AdminView = ({
     const file = e.target.files?.[0];
     if (file) {
       setUploadingIndex(index);
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64 = reader.result as string;
+      setTimeout(async () => {
         try {
-          const compressed = await compressImage(base64);
+          const compressed = await compressImage(file);
           setFormData(prev => {
             const newTriptych = [...(prev.triptychImages || [])];
-            // Ensure array has at least 3 slots
             while (newTriptych.length < 3) newTriptych.push('');
             newTriptych[index] = compressed;
             return { ...prev, triptychImages: newTriptych };
@@ -1674,11 +1684,11 @@ const AdminView = ({
           setTimeout(() => setStatusMessage(null), 2000);
         } catch (error) {
           console.error("Erro ao processar imagem adicional:", error);
+          setStatusMessage("Erro ao processar foto.");
         } finally {
           setUploadingIndex(null);
         }
-      };
-      reader.readAsDataURL(file);
+      }, 100);
     }
   };
 
@@ -1722,11 +1732,10 @@ const AdminView = ({
     const file = e.target.files?.[0];
     if (file) {
       setIsUploading(true);
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64 = reader.result as string;
+      // Small delay to let UI update showing "Processing"
+      setTimeout(async () => {
         try {
-          const compressed = await compressImage(base64);
+          const compressed = await compressImage(file);
           setFormData(prev => ({ 
             ...prev, 
             imageUrl: compressed
@@ -1735,12 +1744,11 @@ const AdminView = ({
           setTimeout(() => setStatusMessage(null), 2000);
         } catch (error) {
           console.error("Erro ao processar imagem:", error);
-          setFormData(prev => ({ ...prev, imageUrl: base64 }));
+          setStatusMessage("Erro ao processar foto. Tente uma menor.");
         } finally {
           setIsUploading(false);
         }
-      };
-      reader.readAsDataURL(file);
+      }, 100);
     }
   };
 
@@ -2198,22 +2206,27 @@ export default function App() {
   const [shippingMethod, setShippingMethod] = useState<'hand' | 'mail'>('hand');
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     try {
-      return sessionStorage.getItem('3dproducoes_isLoggedIn') === 'true';
+      const session = sessionStorage.getItem('3dproducoes_isLoggedIn');
+      if (session) return session === 'true';
+      return localStorage.getItem('3dproducoes_isLoggedIn') === 'true';
     } catch (e) {
       return false;
     }
   });
   const [userEmail, setUserEmail] = useState(() => {
     try {
-      return sessionStorage.getItem('3dproducoes_userEmail') || '';
+      const session = sessionStorage.getItem('3dproducoes_userEmail');
+      if (session) return session;
+      return localStorage.getItem('3dproducoes_userEmail') || '';
     } catch (e) {
       return '';
     }
   });
   const [isAdmin, setIsAdmin] = useState(() => {
     try {
-      const email = sessionStorage.getItem('3dproducoes_userEmail') || '';
-      return email.toLowerCase() === 'jose.festas@gmail.com';
+      const session = sessionStorage.getItem('3dproducoes_userEmail');
+      const email = (session || localStorage.getItem('3dproducoes_userEmail') || '').trim().toLowerCase();
+      return email === 'jose.festas@gmail.com';
     } catch (e) {
       return false;
     }
@@ -2428,24 +2441,25 @@ export default function App() {
   useEffect(() => {
     try {
       sessionStorage.setItem('3dproducoes_userEmail', userEmail);
+      localStorage.setItem('3dproducoes_userEmail', userEmail);
+      localStorage.setItem('3dproducoes_isLoggedIn', isLoggedIn ? 'true' : 'false');
     } catch (e) {
-      console.error("Erro ao salvar email no sessionStorage:", e);
+      console.error("Erro ao salvar email na persistência:", e);
     }
-  }, [userEmail]);
+  }, [userEmail, isLoggedIn]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('3dproducoes_products', JSON.stringify(products));
+      // Strip base64 images from localStorage to prevent QuotaExceededError
+      // We rely on Firestore for images; localStorage is just the metadata cache for fast start.
+      const minimalProducts = products.map(p => ({
+        ...p,
+        imageUrl: p.imageUrl.startsWith('data:') ? '' : p.imageUrl,
+        triptychImages: []
+      }));
+      localStorage.setItem('3dproducoes_products', JSON.stringify(minimalProducts));
     } catch (e) {
-      console.error("Erro ao salvar produtos no localStorage:", e);
-      if (e instanceof Error && e.name === 'QuotaExceededError') {
-        setModal({
-          show: true,
-          title: "Limite de Armazenamento",
-          message: "O limite de armazenamento local foi excedido. Tente remover alguns produtos ou usar imagens menores (menos fotografias).",
-          type: 'alert'
-        });
-      }
+      console.error("Erro ao salvar cache de produtos:", e);
     }
   }, [products]);
 
