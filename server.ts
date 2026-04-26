@@ -28,7 +28,12 @@ async function sendOrderEmail(orderData: any) {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    tls: {
+      rejectUnauthorized: false
+    }
   });
+
+  console.log(`[Email] A tentar enviar para ${adminEmail} via ${process.env.SMTP_HOST}...`);
 
   const cartHtml = cart.map((item: any) => `
     <li>

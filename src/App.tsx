@@ -2576,8 +2576,9 @@ export default function App() {
 
         // 2. Notificar por Email via Servidor
         try {
-          const apiBase = window.location.hostname === 'localhost' ? '' : '/.netlify/functions/api';
-          await axios.post(`${apiBase}/notify-order`, {
+          // Usamos /api prefixado, o netlify.toml lida com o redirecionamento se estiver no Netlify
+          // No ambiente local/preview, o server.ts lida com /api/
+          await axios.post('/api/notify-order', {
             cart,
             total: cartTotal,
             userEmail: userEmail || 'Convidado',
