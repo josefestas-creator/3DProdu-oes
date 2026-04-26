@@ -40,7 +40,8 @@ import {
   Send,
   HandHelping,
   Truck,
-  Mail
+  Mail,
+  AlertCircle
 } from 'lucide-react';
 import { Product, ViewState, CartItem } from './types';
 import { PRODUCTS, REVIEWS } from './constants';
@@ -154,6 +155,7 @@ const compressImage = (source: string | File | Blob, maxWidth = 500, maxHeight =
     }
 
     img.onerror = (err) => {
+      console.error("Erro ao carregar imagem para compressão:", err);
       if (objectUrl) URL.revokeObjectURL(objectUrl);
       reject(err);
     };
@@ -163,6 +165,8 @@ const compressImage = (source: string | File | Blob, maxWidth = 500, maxHeight =
       const canvas = document.createElement('canvas');
       let width = img.width;
       let height = img.height;
+
+      console.log(`Imagem original: ${width}x${height}`);
 
       if (width > height) {
         if (width > maxWidth) {
@@ -176,15 +180,20 @@ const compressImage = (source: string | File | Blob, maxWidth = 500, maxHeight =
         }
       }
 
+      console.log(`Imagem comprimida: ${Math.round(width)}x${Math.round(height)}`);
+
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext('2d');
       if (!ctx) {
+        console.warn("Não foi possível obter contexto 2D do canvas");
         resolve(typeof source === 'string' ? source : '');
         return;
       }
       ctx.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', quality));
+      const result = canvas.toDataURL('image/jpeg', quality);
+      console.log(`Tamanho Base64: ${Math.round(result.length / 1024)} KB`);
+      resolve(result);
     };
   });
 };
@@ -351,7 +360,7 @@ const RequestModal = ({
             <div className="grid grid-cols-4 gap-2">
               <div className="relative aspect-square rounded-xl bg-white/30 border border-white/40 overflow-hidden flex items-center justify-center group">
                 {image ? (
-                  <img src={image} className="w-full h-full object-cover" />
+                  <img src={image || undefined} className="w-full h-full object-cover" />
                 ) : (
                   <Camera className="text-outline" size={20} />
                 )}
@@ -366,7 +375,7 @@ const RequestModal = ({
               {[0, 1, 2].map((idx) => (
                 <div key={idx} className="relative aspect-square rounded-xl bg-white/30 border border-white/40 overflow-hidden flex items-center justify-center group">
                   {triptychImages[idx] ? (
-                    <img src={triptychImages[idx]} className="w-full h-full object-cover" />
+                    <img src={triptychImages[idx] || undefined} className="w-full h-full object-cover" />
                   ) : (
                     <div className="flex flex-col items-center">
                       {uploadingIndex === idx ? (
@@ -570,7 +579,7 @@ const ProductCard = ({
   >
     <div className="aspect-square glass-card rounded-2xl overflow-hidden mb-3 relative">
       <img 
-        src={product.imageUrl} 
+        src={product.imageUrl || undefined} 
         alt={product.name} 
         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
         referrerPolicy="no-referrer"
@@ -991,7 +1000,7 @@ const CartView = ({
             {items.map(item => (
               <div key={item.id} className="glass-card p-4 rounded-2xl flex gap-4 items-center">
                 <div className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0">
-                  <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <img src={item.imageUrl || undefined} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 </div>
                 <div className="flex-grow">
                   <h4 className="font-bold text-sm text-on-surface">{item.name}</h4>
@@ -1217,7 +1226,7 @@ const ProductDetailView = ({ product, onAddToCart, onBack }: { product: Product;
                   initial={{ scale: 0.9, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.9, opacity: 0 }}
-                  src={allImages[activeImageIndex]} 
+                  src={allImages[activeImageIndex] || undefined} 
                   alt={`${product.name} image ${activeImageIndex + 1}`} 
                   className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
                   onClick={(e) => e.stopPropagation()}
@@ -1237,7 +1246,7 @@ const ProductDetailView = ({ product, onAddToCart, onBack }: { product: Product;
                     }}
                     className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all flex-shrink-0 ${activeImageIndex === idx ? 'border-primary scale-110' : 'border-white/10 opacity-50'}`}
                   >
-                    <img src={img} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    <img src={img || undefined} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                   </button>
                 ))}
               </div>
@@ -1263,7 +1272,7 @@ const ProductDetailView = ({ product, onAddToCart, onBack }: { product: Product;
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
           >
             <img 
-              src={product.imageUrl} 
+              src={product.imageUrl || undefined} 
               alt={product.name} 
               className="w-full h-full object-cover"
               referrerPolicy="no-referrer"
@@ -1301,7 +1310,7 @@ const ProductDetailView = ({ product, onAddToCart, onBack }: { product: Product;
                   }}
                 >
                   <img 
-                    src={img} 
+                    src={img || undefined} 
                     alt={`${product.name} thumbnail ${idx + 1}`} 
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
@@ -1443,7 +1452,7 @@ const ProfileView = ({
         <div className="grid grid-cols-2 gap-4">
           {products.slice(0, 4).map(product => (
             <div key={product.id} className="aspect-square glass-card rounded-2xl overflow-hidden shadow-sm">
-              <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              <img src={product.imageUrl || undefined} alt={product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             </div>
           ))}
         </div>
@@ -1612,7 +1621,17 @@ const AdminView = ({
 
   const handleEdit = (product: Product) => {
     setEditingId(product.id);
-    setFormData({ ...product });
+    setFormData({ 
+      name: product.name,
+      price: product.price,
+      imageUrl: product.imageUrl,
+      category: product.category,
+      description: product.description,
+      rating: product.rating,
+      reviewCount: product.reviewCount,
+      triptychImages: product.triptychImages || []
+    });
+    setIsTriptych(!!(product.triptychImages && product.triptychImages.length > 0));
     setIsAdding(false);
   };
 
@@ -1650,14 +1669,30 @@ const AdminView = ({
         triptychImages: []
       });
       setIsTriptych(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao salvar produto:", error);
-      setStatusMessage("Erro ao salvar. Verifique o console ou o limite de espaço.");
+      let errorMsg = "Erro ao salvar peça.";
+      
+      try {
+        const firestoreError = JSON.parse(error.message);
+        if (firestoreError.error) {
+          errorMsg = `Erro Firestore: ${firestoreError.error}`;
+          if (firestoreError.error.includes('Quota exceeded')) {
+            errorMsg = "Limite de espaço (Quota) atingido. Tente novamente mais tarde.";
+          } else if (firestoreError.error.includes('insufficient permissions')) {
+            errorMsg = "Sem permissões para salvar no banco de dados.";
+          }
+        }
+      } catch (e) {
+        errorMsg = error.message || "Erro desconhecido ao salvar.";
+      }
+      
+      setStatusMessage(errorMsg);
     } finally {
       setIsUploading(false);
     }
 
-    setTimeout(() => setStatusMessage(null), 3000);
+    setTimeout(() => setStatusMessage(null), 5000);
   };
 
   const handleMove = (index: number, direction: 'up' | 'down') => {
@@ -1778,8 +1813,8 @@ const AdminView = ({
                 } else {
                   alert("Erro ao enviar email de teste: " + response.data.error);
                 }
-              } catch (e: any) {
-                alert("Erro ao chamar API: " + e.message);
+               } catch (e: any) {
+                alert("Erro ao chamar API: " + (e.response?.data?.message || e.message));
               }
             }}
             className="p-2 hover:bg-primary/10 rounded-full transition-colors text-primary"
@@ -1828,9 +1863,16 @@ const AdminView = ({
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="mb-6 p-4 bg-green-500/10 border border-green-500/20 rounded-2xl text-green-600 text-sm font-bold flex items-center gap-2"
+            className={`mb-6 p-4 rounded-2xl text-sm font-bold flex items-center gap-2 ${
+              statusMessage.toLowerCase().includes('erro') || statusMessage.toLowerCase().includes('não') || statusMessage.toLowerCase().includes('limite')
+                ? 'bg-red-500/10 border border-red-500/20 text-red-600' 
+                : 'bg-green-500/10 border border-green-500/20 text-green-600'
+            }`}
           >
-            <CheckCircle2 size={18} />
+            {statusMessage.toLowerCase().includes('erro') || statusMessage.toLowerCase().includes('não') || statusMessage.toLowerCase().includes('limite')
+              ? <AlertCircle size={18} />
+              : <CheckCircle2 size={18} />
+            }
             {statusMessage}
           </motion.div>
         )}
@@ -1848,7 +1890,7 @@ const AdminView = ({
                 <div className="w-20 h-20 rounded-xl bg-white/50 border border-primary/10 overflow-hidden flex items-center justify-center relative group">
                   {formData.imageUrl ? (
                     <>
-                      <img src={formData.imageUrl} className="w-full h-full object-cover" />
+                      <img src={formData.imageUrl || undefined} className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                         <button 
                           onClick={() => moveImage(0, 'right')}
@@ -1891,7 +1933,7 @@ const AdminView = ({
                     <div key={idx} className="relative aspect-[3/4] rounded-xl bg-white/50 border border-primary/10 overflow-hidden flex items-center justify-center group">
                       {formData.triptychImages?.[idx] ? (
                         <>
-                          <img src={formData.triptychImages[idx]} className="w-full h-full object-cover" />
+                          <img src={formData.triptychImages[idx] || undefined} className="w-full h-full object-cover" />
                           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
                             <div className="flex gap-2">
                               <button 
@@ -1983,10 +2025,10 @@ const AdminView = ({
           <div className="flex gap-3">
             <button 
               onClick={handleSave}
-              disabled={isUploading}
-              className={`flex-grow h-12 signature-gradient text-white font-bold rounded-xl flex items-center justify-center gap-2 ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={isUploading || uploadingIndex !== null}
+              className={`flex-grow h-12 signature-gradient text-white font-bold rounded-xl flex items-center justify-center gap-2 ${(isUploading || uploadingIndex !== null) ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              {isUploading ? (
+              {(isUploading || uploadingIndex !== null) ? (
                 <>
                   <RotateCw size={18} className="animate-spin" />
                   A processar...
@@ -2008,7 +2050,20 @@ const AdminView = ({
         </div>
       ) : (
         <button 
-          onClick={() => setIsAdding(true)}
+          onClick={() => {
+            setFormData({
+              name: '',
+              price: 0,
+              imageUrl: '',
+              category: '',
+              description: '',
+              rating: 5,
+              reviewCount: 0,
+              triptychImages: []
+            });
+            setIsTriptych(false);
+            setIsAdding(true);
+          }}
           className="w-full h-14 border-2 border-dashed border-primary/30 text-primary font-bold rounded-2xl flex items-center justify-center gap-2 mb-8 hover:bg-primary/5 transition-colors"
         >
           <PlusCircle size={20} />
@@ -2036,7 +2091,7 @@ const AdminView = ({
               </button>
             </div>
             <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0">
-              <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              <img src={product.imageUrl || undefined} alt={product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             </div>
             <div className="flex-grow">
               <h4 className="font-bold text-sm text-on-surface">{product.name}</h4>
@@ -2604,7 +2659,11 @@ export default function App() {
           let emailError = null;
           try {
             const response = await axios.post('/api/notify-order', {
-              cart,
+              cart: cart.map(item => ({
+                name: item.name,
+                price: item.price,
+                quantity: item.quantity
+              })),
               total: cartTotal,
               userEmail: userEmail || 'Convidado',
               mbWayPhone,
@@ -2621,7 +2680,7 @@ export default function App() {
             }
           } catch (apiError: any) {
             console.error("Erro ao comunicar com a API de email:", apiError);
-            emailError = apiError.message;
+            emailError = apiError.response?.data?.message || apiError.message;
           }
           
           // Sucesso direto para o utilizador (manual)
