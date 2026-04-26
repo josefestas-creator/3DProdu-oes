@@ -2627,8 +2627,10 @@ export default function App() {
           // Sucesso direto para o utilizador (manual)
           setModal({
             show: true,
-            title: "Encomenda Registada",
-            message: `Obrigado! A sua encomenda foi registada. ${!emailSuccess ? '\n(Nota: Ocorreu um atraso no envio do email de confirmação para o administrador: ' + emailError + ')' : ''}\n\nPor favor, envie o valor de €${cartTotal.toFixed(2)} via MB Way para o contacto ${CONTACT_NUMBER.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3')}.`,
+            title: emailSuccess ? "Encomenda Registada" : "Encomenda Registada (com aviso)",
+            message: emailSuccess 
+              ? `Obrigado! A sua encomenda foi registada com sucesso. Verifique o seu email (e pasta de Spam).\n\nPor favor, envie o valor de €${cartTotal.toFixed(2)} via MB Way para o contacto ${CONTACT_NUMBER.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3')}.`
+              : `Obrigado! A sua encomenda foi registada internamente, mas não conseguimos enviar o email de notificação.\n\nERRO DO SERVIDOR: ${emailError || 'Erro desconhecido'}\n\nPor favor, envie o valor de €${cartTotal.toFixed(2)} via MB Way para o contacto ${CONTACT_NUMBER.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3')}.`,
             type: 'alert'
           });
         setCart([]);
