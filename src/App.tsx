@@ -39,7 +39,8 @@ import {
   ClipboardList,
   Send,
   HandHelping,
-  Truck
+  Truck,
+  Mail
 } from 'lucide-react';
 import { Product, ViewState, CartItem } from './types';
 import { PRODUCTS, REVIEWS } from './constants';
@@ -1762,6 +1763,30 @@ const AdminView = ({
       <div className="mb-8 flex items-center justify-between">
         <h2 className="text-3xl font-black tracking-tight text-on-surface font-headline">Painel Admin</h2>
         <div className="flex gap-2 items-center">
+          <button 
+            onClick={async () => {
+              try {
+                const response = await axios.post('/api/notify-order', {
+                  cart: [{ name: 'Peça de Teste', quantity: 1, price: 0 }],
+                  total: 0,
+                  userEmail: 'Suporte Técnico',
+                  mbWayPhone: 'TESTE',
+                  shippingMethod: 'levantamento'
+                });
+                if (response.data.success) {
+                  alert("Email de teste enviado com sucesso! Verifique o seu email.");
+                } else {
+                  alert("Erro ao enviar email de teste: " + response.data.error);
+                }
+              } catch (e: any) {
+                alert("Erro ao chamar API: " + e.message);
+              }
+            }}
+            className="p-2 hover:bg-primary/10 rounded-full transition-colors text-primary"
+            title="Enviar Email de Teste"
+          >
+            <Mail size={20} />
+          </button>
           <button 
             onClick={() => {
               onClearAllProducts();

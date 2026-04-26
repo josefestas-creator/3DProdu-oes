@@ -1,10 +1,14 @@
 import "dotenv/config";
+import dotenv from "dotenv";
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import nodemailer from "nodemailer";
 import axios from "axios";
+
+// Forçar carregamento do .env local se existir
+dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,6 +17,9 @@ const __dirname = path.dirname(__filename);
 async function sendOrderEmail(orderData: any) {
   const { cart, total, userEmail, mbWayPhone, shippingMethod, shippingAddress } = orderData;
   const adminEmail = process.env.ADMIN_EMAIL || "jose.festas@gmail.com";
+
+  console.log("[Email] Iniciando envio. Configurações detetadas:");
+  console.log(`[Email] HOST: ${process.env.SMTP_HOST}, PORT: ${process.env.SMTP_PORT}, USER: ${process.env.SMTP_USER}`);
 
   // Verificar se há configurações SMTP
   if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
@@ -47,7 +54,7 @@ async function sendOrderEmail(orderData: any) {
   const transporter = nodemailer.createTransport(transportConfig);
 
   console.log(`[Email] A preparar envio para ${adminEmail} via ${transportConfig.service || process.env.SMTP_HOST}...`);
-  console.log(`[Email] User: ${process.env.SMTP_USER}, Pass: ${smtpPass ? '****' + smtpPass.slice(-4) : 'VAZIA'}`);
+  console.log(`[Email] Pass-Check: Len=${smtpPass.length}, Last4=${smtpPass.slice(-4)}`);
 
   const cartHtml = cart.map((item: any) => `
     <li>
@@ -62,13 +69,13 @@ async function sendOrderEmail(orderData: any) {
   ` : '<p><strong>Levantamento:</strong> Em mãos</p>';
 
   const mailOptions = {
-    from: process.env.SMTP_FROM || `"3D Produções" <${process.env.SMTP_USER}>`,
+    from: process.env.SMTP_USER, // Usar apenas o email para evitar filtros
     to: adminEmail,
-    subject: `Nova Encomenda - €${total.toFixed(2)}`,
+    subject: `Encomenda: €${total.toFixed(2)}`,
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
-        <h2 style="color: #333;">Nova Encomenda Recebida!</h2>
-        <p>Recebeu um novo pedido na 3D Produções.</p>
+        <h2 style="color: #333;">Nova Encomenda!</h2>
+        <p>Recebeu um novo pedido na 3D Produções (Site).</p>
         
         <hr style="border: 0; border-top: 1px solid #eee;">
         
@@ -86,17 +93,17 @@ async function sendOrderEmail(orderData: any) {
         
         <hr style="border: 0; border-top: 1px solid #eee;">
         
-        <p style="font-size: 0.8em; color: #777;">Esta é uma mensagem automática do seu sistema de encomendas.</p>
+        <p style="font-size: 0.8em; color: #777;">Mensagem automática do sistema.</p>
       </div>
     `,
   };
 
   try {
     const info = await transporter.sendMail(mailOptions);
-    console.log("[Email] Sucesso:", info.response);
+    console.log("[Email] Sucesso TOTAL:", info.messageId, info.response);
     return { success: true, info: info.response };
   } catch (error: any) {
-    console.error("[Email] Erro:", error.message);
+    console.error("[Email] ERRO NO ENVIO:", error.message);
     return { success: false, error: error.message };
   }
 }
