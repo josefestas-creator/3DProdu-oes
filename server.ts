@@ -200,10 +200,13 @@ async function startServer() {
 
   // API: Notificação de Encomenda (para quando se usa Firestore direto no frontend)
   app.post("/api/notify-order", async (req, res) => {
+    console.log("[Server] Recebido pedido em /api/notify-order");
     try {
       const emailResult = await sendOrderEmail(req.body);
+      console.log("[Server] Resultado do envio:", emailResult.success ? "SUCESSO" : "FALHA", emailResult.error || "");
       res.json(emailResult);
-    } catch (error) {
+    } catch (error: any) {
+      console.error("[Server] Erro na rota notify-order:", error.message);
       res.status(500).json({ success: false, error: "Erro interno no servidor" });
     }
   });
