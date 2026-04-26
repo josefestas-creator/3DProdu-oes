@@ -17,23 +17,37 @@ async function sendOrderEmail(orderData: any) {
   // Verificar se há configurações SMTP
   if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
     console.warn("[Email] Configurações SMTP ausentes. Ignorando envio de email.");
-    return false;
+    return { success: false, error: "Configurações SMTP ausentes" };
   }
 
-  const transporter = nodemailer.createTransport({
+  const smtpPass = (process.env.SMTP_PASS || "").replace(/\s/g, "");
+  
+  // Opções para o transporter
+  const transportConfig: any = {
     host: process.env.SMTP_HOST,
     port: parseInt(process.env.SMTP_PORT || "587"),
     secure: process.env.SMTP_PORT === "465",
     auth: {
       user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
+      pass: smtpPass,
     },
     tls: {
       rejectUnauthorized: false
     }
-  });
+  };
 
-  console.log(`[Email] A tentar enviar para ${adminEmail} via ${process.env.SMTP_HOST}...`);
+  // Atalho para Gmail melhora fiabilidade
+  if (process.env.SMTP_HOST?.includes('gmail.com')) {
+    delete transportConfig.host;
+    delete transportConfig.port;
+    delete transportConfig.secure;
+    transportConfig.service = 'gmail';
+  }
+
+  const transporter = nodemailer.createTransport(transportConfig);
+
+  console.log(`[Email] A preparar envio para ${adminEmail} via ${transportConfig.service || process.env.SMTP_HOST}...`);
+  console.log(`[Email] User: ${process.env.SMTP_USER}, Pass: ${smtpPass ? '****' + smtpPass.slice(-4) : 'VAZIA'}`);
 
   const cartHtml = cart.map((item: any) => `
     <li>
@@ -78,12 +92,12 @@ async function sendOrderEmail(orderData: any) {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
-    console.log("[Email] Email de notificação enviado para", adminEmail);
-    return true;
-  } catch (error) {
-    console.error("[Email] Erro ao enviar email:", error);
-    return false;
+    const info = await transporter.sendMail(mailOptions);
+    console.log("[Email] Sucesso:", info.response);
+    return { success: true, info: info.response };
+  } catch (error: any) {
+    console.error("[Email] Erro:", error.message);
+    return { success: false, error: error.message };
   }
 }
 
@@ -160,12 +174,14 @@ async function startServer() {
       }
 
       // 3. Enviar Notificação por Email
-      await sendOrderEmail({ cart, total, userEmail, mbWayPhone, shippingMethod, shippingAddress });
+      const emailResult = await sendOrderEmail({ cart, total, userEmail, mbWayPhone, shippingMethod, shippingAddress });
 
       res.json({ 
         success: true, 
         message: "Encomenda processada!",
         paymentStatus,
+        emailSent: emailResult.success,
+        emailError: emailResult.error || null,
         warnings: errors.length > 0 ? errors : null
       });
 
@@ -178,10 +194,10 @@ async function startServer() {
   // API: Notificação de Encomenda (para quando se usa Firestore direto no frontend)
   app.post("/api/notify-order", async (req, res) => {
     try {
-      const success = await sendOrderEmail(req.body);
-      res.json({ success });
+      const emailResult = await sendOrderEmail(req.body);
+      res.json(emailResult);
     } catch (error) {
-      res.status(500).json({ success: false });
+      res.status(500).json({ success: false, error: "Erro interno no servidor" });
     }
   });
 

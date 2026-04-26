@@ -2578,7 +2578,7 @@ export default function App() {
         try {
           // Usamos /api prefixado, o netlify.toml lida com o redirecionamento se estiver no Netlify
           // No ambiente local/preview, o server.ts lida com /api/
-          await axios.post('/api/notify-order', {
+          const response = await axios.post('/api/notify-order', {
             cart,
             total: cartTotal,
             userEmail: userEmail || 'Convidado',
@@ -2586,10 +2586,14 @@ export default function App() {
             shippingMethod,
             shippingAddress: shippingMethod === 'mail' ? shippingAddress : null
           });
-          console.log("Servidor: Notificação de email enviada.");
+          
+          if (response.data.success) {
+            console.log("Servidor: Notificação de email enviada com sucesso.", response.data.info);
+          } else {
+            console.error("Servidor: Falha ao enviar email:", response.data.error);
+          }
         } catch (apiError) {
-          console.error("Erro ao enviar notificação por email:", apiError);
-          // Não bloqueamos o sucesso do utilizador se o email falhar (o admin verá no painel)
+          console.error("Erro ao comunicar com a API de email:", apiError);
         }
         
         // Sucesso direto para o utilizador (manual)

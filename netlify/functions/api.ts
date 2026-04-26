@@ -15,23 +15,37 @@ async function sendOrderEmail(orderData: any) {
 
   if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
     console.warn("[Email] Configurações SMTP ausentes.");
-    return false;
+    return { success: false, error: "Configurações SMTP ausentes" };
   }
 
-  const transporter = nodemailer.createTransport({
+  const smtpPass = (process.env.SMTP_PASS || "").replace(/\s/g, "");
+
+  // Opções para o transporter
+  const transportConfig: any = {
     host: process.env.SMTP_HOST,
     port: parseInt(process.env.SMTP_PORT || "587"),
     secure: process.env.SMTP_PORT === "465",
     auth: {
       user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
+      pass: smtpPass,
     },
     tls: {
       rejectUnauthorized: false
     }
-  });
+  };
 
-  console.log(`[Email] A tentar enviar via ${process.env.SMTP_HOST}...`);
+  // Atalho para Gmail melhora fiabilidade
+  if (process.env.SMTP_HOST?.includes('gmail.com')) {
+    delete transportConfig.host;
+    delete transportConfig.port;
+    delete transportConfig.secure;
+    transportConfig.service = 'gmail';
+  }
+
+  const transporter = nodemailer.createTransport(transportConfig);
+
+  console.log(`[Email] A preparar envio via ${transportConfig.service || process.env.SMTP_HOST} (Port: ${process.env.SMTP_PORT})...`);
+  console.log(`[Email] User: ${process.env.SMTP_USER}, Pass: ${smtpPass ? '****' + smtpPass.slice(-4) : 'VAZIA'}`);
 
   const cartHtml = cart.map((item: any) => `
     <li><strong>${item.name}</strong> - ${item.quantity}x €${item.price.toFixed(2)}</li>
@@ -49,24 +63,30 @@ async function sendOrderEmail(orderData: any) {
     subject: `Nova Encomenda - €${total.toFixed(2)}`,
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
-        <h2>Nova Encomenda Recebida!</h2>
+        <h2 style="color: #333;">Nova Encomenda Recebida!</h2>
+        <p>Recebeu um novo pedido na 3D Produções.</p>
+        <hr style="border: 0; border-top: 1px solid #eee;">
+        <h3>Detalhes do Cliente:</h3>
         <p><strong>Email:</strong> ${userEmail || 'Convidado'}</p>
         <p><strong>Telemóvel MB Way:</strong> ${mbWayPhone}</p>
         <h3>Items:</h3>
         <ul>${cartHtml}</ul>
-        <p><strong>Total: €${total.toFixed(2)}</strong></p>
+        <p style="font-size: 1.2em;"><strong>Total: €${total.toFixed(2)}</strong></p>
         <h3>Envio:</h3>
         ${addressHtml}
+        <hr style="border: 0; border-top: 1px solid #eee;">
+        <p style="font-size: 0.8em; color: #777;">Esta é uma mensagem automática do seu sistema de encomendas.</p>
       </div>
     `,
   };
 
   try {
-    await transporter.sendMail(mailOptions);
-    return true;
-  } catch (error) {
-    console.error("[Email] Erro ao enviar email:", error);
-    return false;
+    const info = await transporter.sendMail(mailOptions);
+    console.log("[Email] Sucesso:", info.response);
+    return { success: true, info: info.response };
+  } catch (error: any) {
+    console.error("[Email] Erro:", error.message);
+    return { success: false, error: error.message };
   }
 }
 
@@ -121,12 +141,14 @@ router.post("/checkout", async (req, res) => {
     }
 
     // Notificação por Email
-    await sendOrderEmail({ cart, total, userEmail, mbWayPhone, shippingMethod, shippingAddress });
+    const emailResult = await sendOrderEmail({ cart, total, userEmail, mbWayPhone, shippingMethod, shippingAddress });
 
     res.json({ 
       success: true, 
       message: "Encomenda processada!",
       paymentStatus,
+      emailSent: emailResult.success,
+      emailError: emailResult.error || null,
       warnings: errors.length > 0 ? errors : null
     });
 
@@ -137,8 +159,8 @@ router.post("/checkout", async (req, res) => {
 
 // API: Notificação
 router.post("/notify-order", async (req, res) => {
-  const success = await sendOrderEmail(req.body);
-  res.json({ success });
+  const emailResult = await sendOrderEmail(req.body);
+  res.json(emailResult);
 });
 
 // API: Check Admin
