@@ -1,11 +1,69 @@
 import express, { Router } from "express";
 import serverless from "serverless-http";
 import axios from "axios";
+import nodemailer from "nodemailer";
 
 const app = express();
 const router = Router();
 
 app.use(express.json());
+
+// Auxiliar: Enviar Email de Encomenda
+async function sendOrderEmail(orderData: any) {
+  const { cart, total, userEmail, mbWayPhone, shippingMethod, shippingAddress } = orderData;
+  const adminEmail = process.env.ADMIN_EMAIL || "jose.festas@gmail.com";
+
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    console.warn("[Email] Configurações SMTP ausentes.");
+    return false;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT || "587"),
+    secure: process.env.SMTP_PORT === "465",
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+
+  const cartHtml = cart.map((item: any) => `
+    <li><strong>${item.name}</strong> - ${item.quantity}x €${item.price.toFixed(2)}</li>
+  `).join('');
+
+  const addressHtml = shippingMethod === 'mail' ? `
+    <p><strong>Morada de Envio:</strong><br>
+    ${shippingAddress.street}<br>
+    ${shippingAddress.postalCode} ${shippingAddress.city}</p>
+  ` : '<p><strong>Levantamento:</strong> Em mãos</p>';
+
+  const mailOptions = {
+    from: process.env.SMTP_FROM || `"3D Produções" <${process.env.SMTP_USER}>`,
+    to: adminEmail,
+    subject: `Nova Encomenda - €${total.toFixed(2)}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
+        <h2>Nova Encomenda Recebida!</h2>
+        <p><strong>Email:</strong> ${userEmail || 'Convidado'}</p>
+        <p><strong>Telemóvel MB Way:</strong> ${mbWayPhone}</p>
+        <h3>Items:</h3>
+        <ul>${cartHtml}</ul>
+        <p><strong>Total: €${total.toFixed(2)}</strong></p>
+        <h3>Envio:</h3>
+        ${addressHtml}
+      </div>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    return true;
+  } catch (error) {
+    console.error("[Email] Erro ao enviar email:", error);
+    return false;
+  }
+}
 
 // API: Checkout (MB Way)
 router.post("/checkout", async (req, res) => {
@@ -57,6 +115,9 @@ router.post("/checkout", async (req, res) => {
       });
     }
 
+    // Notificação por Email
+    await sendOrderEmail({ cart, total, userEmail, mbWayPhone, shippingMethod, shippingAddress });
+
     res.json({ 
       success: true, 
       message: "Encomenda processada!",
@@ -67,6 +128,12 @@ router.post("/checkout", async (req, res) => {
   } catch (error: any) {
     res.status(500).json({ success: false, message: "Erro interno." });
   }
+});
+
+// API: Notificação
+router.post("/notify-order", async (req, res) => {
+  const success = await sendOrderEmail(req.body);
+  res.json({ success });
 });
 
 // API: Check Admin

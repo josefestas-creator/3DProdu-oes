@@ -5,6 +5,7 @@
 
 import * as React from 'react';
 import { useState, useEffect, useMemo, Component } from 'react';
+import axios from 'axios';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, 
@@ -2572,6 +2573,23 @@ export default function App() {
           createdAt: new Date().toISOString()
         });
         console.log("Firestore: Encomenda guardada com sucesso.");
+
+        // 2. Notificar por Email via Servidor
+        try {
+          const apiBase = window.location.hostname === 'localhost' ? '' : '/.netlify/functions/api';
+          await axios.post(`${apiBase}/notify-order`, {
+            cart,
+            total: cartTotal,
+            userEmail: userEmail || 'Convidado',
+            mbWayPhone,
+            shippingMethod,
+            shippingAddress: shippingMethod === 'mail' ? shippingAddress : null
+          });
+          console.log("Servidor: Notificação de email enviada.");
+        } catch (apiError) {
+          console.error("Erro ao enviar notificação por email:", apiError);
+          // Não bloqueamos o sucesso do utilizador se o email falhar (o admin verá no painel)
+        }
         
         // Sucesso direto para o utilizador (manual)
         setModal({

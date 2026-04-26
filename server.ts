@@ -9,6 +9,79 @@ import axios from "axios";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Auxiliar: Enviar Email de Encomenda
+async function sendOrderEmail(orderData: any) {
+  const { cart, total, userEmail, mbWayPhone, shippingMethod, shippingAddress } = orderData;
+  const adminEmail = process.env.ADMIN_EMAIL || "jose.festas@gmail.com";
+
+  // Verificar se há configurações SMTP
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    console.warn("[Email] Configurações SMTP ausentes. Ignorando envio de email.");
+    return false;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT || "587"),
+    secure: process.env.SMTP_PORT === "465",
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+
+  const cartHtml = cart.map((item: any) => `
+    <li>
+      <strong>${item.name}</strong> - ${item.quantity}x €${item.price.toFixed(2)}
+    </li>
+  `).join('');
+
+  const addressHtml = shippingMethod === 'mail' ? `
+    <p><strong>Morada de Envio:</strong><br>
+    ${shippingAddress.street}<br>
+    ${shippingAddress.postalCode} ${shippingAddress.city}</p>
+  ` : '<p><strong>Levantamento:</strong> Em mãos</p>';
+
+  const mailOptions = {
+    from: process.env.SMTP_FROM || `"3D Produções" <${process.env.SMTP_USER}>`,
+    to: adminEmail,
+    subject: `Nova Encomenda - €${total.toFixed(2)}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
+        <h2 style="color: #333;">Nova Encomenda Recebida!</h2>
+        <p>Recebeu um novo pedido na 3D Produções.</p>
+        
+        <hr style="border: 0; border-top: 1px solid #eee;">
+        
+        <h3>Detalhes do Cliente:</h3>
+        <p><strong>Email:</strong> ${userEmail || 'Convidado'}</p>
+        <p><strong>Telemóvel MB Way:</strong> ${mbWayPhone}</p>
+        
+        <h3>Items:</h3>
+        <ul>${cartHtml}</ul>
+        
+        <p style="font-size: 1.2em;"><strong>Total: €${total.toFixed(2)}</strong></p>
+        
+        <h3>Envio:</h3>
+        ${addressHtml}
+        
+        <hr style="border: 0; border-top: 1px solid #eee;">
+        
+        <p style="font-size: 0.8em; color: #777;">Esta é uma mensagem automática do seu sistema de encomendas.</p>
+      </div>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log("[Email] Email de notificação enviado para", adminEmail);
+    return true;
+  } catch (error) {
+    console.error("[Email] Erro ao enviar email:", error);
+    return false;
+  }
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -81,6 +154,9 @@ async function startServer() {
         });
       }
 
+      // 3. Enviar Notificação por Email
+      await sendOrderEmail({ cart, total, userEmail, mbWayPhone, shippingMethod, shippingAddress });
+
       res.json({ 
         success: true, 
         message: "Encomenda processada!",
@@ -91,6 +167,16 @@ async function startServer() {
     } catch (error: any) {
       console.error("[Checkout] Erro fatal:", error.message);
       res.status(500).json({ success: false, message: "Erro interno ao processar a encomenda." });
+    }
+  });
+
+  // API: Notificação de Encomenda (para quando se usa Firestore direto no frontend)
+  app.post("/api/notify-order", async (req, res) => {
+    try {
+      const success = await sendOrderEmail(req.body);
+      res.json({ success });
+    } catch (error) {
+      res.status(500).json({ success: false });
     }
   });
 
