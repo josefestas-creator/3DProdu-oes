@@ -2575,34 +2575,37 @@ export default function App() {
         console.log("Firestore: Encomenda guardada com sucesso.");
 
         // 2. Notificar por Email via Servidor
-        try {
-          // Usamos /api prefixado, o netlify.toml lida com o redirecionamento se estiver no Netlify
-          // No ambiente local/preview, o server.ts lida com /api/
-          const response = await axios.post('/api/notify-order', {
-            cart,
-            total: cartTotal,
-            userEmail: userEmail || 'Convidado',
-            mbWayPhone,
-            shippingMethod,
-            shippingAddress: shippingMethod === 'mail' ? shippingAddress : null
-          });
-          
-          if (response.data.success) {
-            console.log("Servidor: Notificação de email enviada com sucesso.", response.data.info);
-          } else {
-            console.error("Servidor: Falha ao enviar email:", response.data.error);
+          let emailSuccess = false;
+          let emailError = null;
+          try {
+            const response = await axios.post('/api/notify-order', {
+              cart,
+              total: cartTotal,
+              userEmail: userEmail || 'Convidado',
+              mbWayPhone,
+              shippingMethod,
+              shippingAddress: shippingMethod === 'mail' ? shippingAddress : null
+            });
+            
+            if (response.data.success) {
+              console.log("Servidor: Notificação de email enviada com sucesso.", response.data.info);
+              emailSuccess = true;
+            } else {
+              console.error("Servidor: Falha ao enviar email:", response.data.error);
+              emailError = response.data.error;
+            }
+          } catch (apiError: any) {
+            console.error("Erro ao comunicar com a API de email:", apiError);
+            emailError = apiError.message;
           }
-        } catch (apiError) {
-          console.error("Erro ao comunicar com a API de email:", apiError);
-        }
-        
-        // Sucesso direto para o utilizador (manual)
-        setModal({
-          show: true,
-          title: "Encomenda Registada",
-          message: `Obrigado! A sua encomenda foi registada. Por favor, envie o valor de €${cartTotal.toFixed(2)} via MB Way para o contacto ${CONTACT_NUMBER.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3')}.`,
-          type: 'alert'
-        });
+          
+          // Sucesso direto para o utilizador (manual)
+          setModal({
+            show: true,
+            title: "Encomenda Registada",
+            message: `Obrigado! A sua encomenda foi registada. ${!emailSuccess ? '\n(Nota: Ocorreu um atraso no envio do email de confirmação para o administrador: ' + emailError + ')' : ''}\n\nPor favor, envie o valor de €${cartTotal.toFixed(2)} via MB Way para o contacto ${CONTACT_NUMBER.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3')}.`,
+            type: 'alert'
+          });
         setCart([]);
         setView('shop');
         setShowMBWayModal(false);
