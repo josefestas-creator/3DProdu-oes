@@ -2411,25 +2411,21 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     try {
       const session = sessionStorage.getItem('3dproducoes_isLoggedIn');
-      if (session) return session === 'true';
-      return localStorage.getItem('3dproducoes_isLoggedIn') === 'true';
+      return session === 'true';
     } catch (e) {
       return false;
     }
   });
   const [userEmail, setUserEmail] = useState(() => {
     try {
-      const session = sessionStorage.getItem('3dproducoes_userEmail');
-      if (session) return session;
-      return localStorage.getItem('3dproducoes_userEmail') || '';
+      return sessionStorage.getItem('3dproducoes_userEmail') || '';
     } catch (e) {
       return '';
     }
   });
   const [isAdmin, setIsAdmin] = useState(() => {
     try {
-      const session = sessionStorage.getItem('3dproducoes_userEmail');
-      const email = (session || localStorage.getItem('3dproducoes_userEmail') || '').trim().toLowerCase();
+      const email = (sessionStorage.getItem('3dproducoes_userEmail') || '').trim().toLowerCase();
       return email === 'jose.festas@gmail.com';
     } catch (e) {
       return false;
@@ -2636,7 +2632,6 @@ export default function App() {
 
   useEffect(() => {
     try {
-      // Não salvamos mais a vista no sessionStorage para que abra sempre no perfil ao iniciar
       // Mas mantemos o estado de login na sessão
       sessionStorage.setItem('3dproducoes_isLoggedIn', isLoggedIn.toString());
     } catch (e) {
@@ -2647,8 +2642,9 @@ export default function App() {
   useEffect(() => {
     try {
       sessionStorage.setItem('3dproducoes_userEmail', userEmail);
-      localStorage.setItem('3dproducoes_userEmail', userEmail);
-      localStorage.setItem('3dproducoes_isLoggedIn', isLoggedIn ? 'true' : 'false');
+      // Limpar resíduos do localStorage para evitar que continue logado ao fechar
+      localStorage.removeItem('3dproducoes_userEmail');
+      localStorage.removeItem('3dproducoes_isLoggedIn');
     } catch (e) {
       console.error("Erro ao salvar email na persistência:", e);
     }
@@ -3022,6 +3018,14 @@ export default function App() {
     setIsAdmin(false);
     setView('landing');
     setCart([]);
+    try {
+      sessionStorage.removeItem('3dproducoes_isLoggedIn');
+      sessionStorage.removeItem('3dproducoes_userEmail');
+      localStorage.removeItem('3dproducoes_isLoggedIn');
+      localStorage.removeItem('3dproducoes_userEmail');
+    } catch (err) {
+      console.error("Erro ao limpar dados de sessão:", err);
+    }
   };
 
   const handleProductClick = (product: Product) => {

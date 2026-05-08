@@ -33,28 +33,33 @@ async function sendOrderEmail(orderData: any) {
 
   console.log(`[Email] Tentativa de envio: ${smtpHost}:${smtpPort} (User: ${smtpUser})`);
 
-  // Opções para o transporter
-  const transportConfig: any = {
-    host: smtpHost,
-    port: smtpPort,
-    secure: smtpPort === 465,
-    auth: {
-      user: smtpUser,
-      pass: smtpPass,
-    },
-    tls: {
-      rejectUnauthorized: false
-    }
-  };
-
-  // Atalho para Gmail melhora muito a fiabilidade
+  let transporter;
   if (smtpHost.includes('gmail.com')) {
-    transportConfig.service = 'gmail';
+    console.log("[Email] Configurando transporter específico para Gmail...");
+    transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      }
+    });
+  } else {
+    console.log(`[Email] Configurando transporter SMTP genérico (${smtpHost}:${smtpPort})...`);
+    transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+      tls: {
+        rejectUnauthorized: false
+      }
+    });
   }
 
-  const transporter = nodemailer.createTransport(transportConfig);
-
-  console.log(`[Email] A preparar envio para ${adminEmail} via ${transportConfig.service || process.env.SMTP_HOST}...`);
+  console.log(`[Email] A preparar envio para ${adminEmail} via ${smtpHost}...`);
   console.log(`[Email] Pass-Check: Len=${smtpPass.length}, Last4=${smtpPass.slice(-4)}`);
 
   const cartHtml = cart.map((item: any) => `
