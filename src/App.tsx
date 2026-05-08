@@ -2504,9 +2504,9 @@ export default function App() {
       });
 
       if (firestoreProducts.length > 0) {
-        console.log("Firestore: Produtos carregados com sucesso.");
+        console.log("Firestore: Produtos atualizados em tempo real.");
         setProducts(firestoreProducts);
-        // Clear local storage potential conflicts
+        // Force update storage with fresh data
         localStorage.setItem('3dproducoes_products', JSON.stringify(firestoreProducts));
       } else {
         console.log("Firestore: Nenhum produto encontrado no banco. Usando locais.");
