@@ -122,8 +122,14 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-  // API: Checkout (MB Way)
-  app.post("/api/checkout", async (req, res) => {
+  // Middleware de Log para diagnosticar rotas e pedidos
+  app.use((req, res, next) => {
+    console.log(`[Server ${new Date().toISOString()}] ${req.method} ${req.url}`);
+    next();
+  });
+
+  // API Handlers Modulares
+  const handleCheckout = async (req: express.Request, res: express.Response) => {
     const { cart, shippingMethod, shippingAddress, mbWayPhone, total, userEmail } = req.body;
     const adminEmail = process.env.ADMIN_EMAIL || "jose.festas@gmail.com";
 
@@ -179,27 +185,33 @@ async function startServer() {
       console.error("[Checkout] Erro fatal:", error.message);
       res.status(500).json({ success: false, message: "Erro interno: " + error.message });
     }
-  });
+  };
 
-  // API: Notificação de Encomenda
-  app.post("/api/notify-order", async (req, res) => {
-    console.log("[Server] Recebido pedido em /api/notify-order de:", req.ip);
+  const handleNotifyOrder = async (req: express.Request, res: express.Response) => {
+    console.log("[Server] Recebido pedido na rota notify-order de:", req.ip);
     try {
       const emailResult = await sendOrderEmail(req.body);
-      console.log("[Server] Resultado do envio:", emailResult.success ? "SUCESSO" : "FALHA", emailResult.error || "");
+      console.log("[Server] Resultado do envio de email:", emailResult.success ? "SUCESSO" : "FALHA", emailResult.error || "");
       res.json(emailResult);
     } catch (error: any) {
       console.error("[Server] Erro na rota notify-order:", error.message);
       res.status(500).json({ success: false, error: "Erro interno: " + error.message });
     }
-  });
+  };
 
-  // API: Verificar se o utilizador é administrador
-  app.post("/api/admin/check", (req, res) => {
+  const handleAdminCheck = (req: express.Request, res: express.Response) => {
     const { email } = req.body;
     const adminEmail = process.env.ADMIN_EMAIL || DEFAULT_ADMIN;
-    res.json({ isAdmin: email.toLowerCase() === adminEmail.toLowerCase() });
-  });
+    res.json({ isAdmin: (email || '').toLowerCase() === adminEmail.toLowerCase() });
+  };
+
+  // Mapear ALL rotas possíveis para evitar 404 (com ou sem slash, com ou sem netlify prefix)
+  app.post(["/api/checkout", "/api/checkout/", "/.netlify/functions/api/checkout", "/.netlify/functions/api/checkout/"], handleCheckout);
+  app.post(["/api/notify-order", "/api/notify-order/", "/.netlify/functions/api/notify-order", "/.netlify/functions/api/notify-order/"], handleNotifyOrder);
+  app.post(["/api/admin/check", "/api/admin/check/", "/.netlify/functions/api/admin/check", "/.netlify/functions/api/admin/check/"], handleAdminCheck);
+
+  // Fallbacks adicionais de GET para teste rápido no browser se necessário
+  app.get(["/api/health", "/api/health/"], (req, res) => res.json({ status: "online", time: new Date().toISOString() }));
 
   // Vite ou Produção
   if (process.env.NODE_ENV !== "production") {
