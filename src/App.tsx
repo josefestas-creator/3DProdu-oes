@@ -229,6 +229,83 @@ const splitImageIntoThree = (base64Str: string, quality = 0.6): Promise<string[]
 
 // --- Components ---
 
+const HeroShuffle = ({ products }: { products: Product[] }) => {
+  const latestProducts = useMemo(() => {
+    // Get last 6 products or all if less than 6
+    return [...products].sort((a, b) => (b.order || 0) - (a.order || 0)).slice(0, 6);
+  }, [products]);
+
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    if (latestProducts.length <= 1) return;
+    
+    const interval = setInterval(() => {
+      setCurrentIndex(prev => {
+        let nextIndex;
+        do {
+          nextIndex = Math.floor(Math.random() * latestProducts.length);
+        } while (nextIndex === prev && latestProducts.length > 1);
+        return nextIndex;
+      });
+    }, 4500); // Slightly longer for better viewing
+
+    return () => clearInterval(interval);
+  }, [latestProducts]);
+
+  if (latestProducts.length === 0) return null;
+
+  return (
+    <div className="relative w-full aspect-[16/9] rounded-[2.5rem] overflow-hidden glass-panel border border-white/40 shadow-2xl mb-8 group">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={latestProducts[currentIndex].id}
+          initial={{ opacity: 0, scale: 1.1 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 1, ease: "easeOut" }}
+          className="absolute inset-0"
+        >
+          <img 
+            src={latestProducts[currentIndex].imageUrl} 
+            alt={latestProducts[currentIndex].name}
+            className="w-full h-full object-cover"
+            referrerPolicy="no-referrer"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-8">
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.3 }}
+            >
+              <span className="inline-block px-3 py-1 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-full mb-2">
+                Última Novidade
+              </span>
+              <h3 className="text-2xl font-black text-white tracking-tight mb-1 font-headline">
+                {latestProducts[currentIndex].name}
+              </h3>
+              <p className="text-white/70 text-sm font-medium line-clamp-1">
+                {latestProducts[currentIndex].description}
+              </p>
+            </motion.div>
+          </div>
+        </motion.div>
+      </AnimatePresence>
+      
+      {/* Indicators */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+        {latestProducts.map((_, idx) => (
+          <button
+            key={idx}
+            onClick={() => setCurrentIndex(idx)}
+            className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentIndex ? 'w-6 bg-white' : 'w-1.5 bg-white/40'}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const Logo = ({ size = "md", className = "" }: { size?: "sm" | "md" | "lg", className?: string }) => {
   const sizeClasses = {
     sm: "w-8 h-8 rounded-lg text-[10px]",
@@ -1447,10 +1524,12 @@ const ProfileView = ({
         </button>
       </section>
 
+      <HeroShuffle products={products} />
+
       <div className="mb-8">
         <h3 className="text-xl font-black tracking-tight text-on-surface mb-4 font-headline">Portfólio</h3>
         <div className="grid grid-cols-2 gap-4">
-          {products.slice(0, 4).map(product => (
+          {[...products].sort((a,b) => (b.order || 0) - (a.order || 0)).slice(0, 4).map(product => (
             <div key={product.id} className="aspect-square glass-card rounded-2xl overflow-hidden shadow-sm">
               <img src={product.imageUrl || undefined} alt={product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             </div>
@@ -1553,8 +1632,10 @@ const ShopView = ({
       )}
     </div>
 
+    <HeroShuffle products={products} />
+
     <div className="grid grid-cols-2 gap-4">
-      {products.map(product => (
+      {[...products].sort((a,b) => (b.order || 0) - (a.order || 0)).map(product => (
         <div key={product.id}>
           <ProductCard 
             product={product} 
