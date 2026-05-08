@@ -22,21 +22,25 @@ async function sendOrderEmail(orderData: any) {
   console.log("[Email] Iniciando envio. Configurações detetadas:");
   console.log(`[Email] HOST: ${process.env.SMTP_HOST}, PORT: ${process.env.SMTP_PORT}, USER: ${process.env.SMTP_USER}`);
 
-  // Verificar se há configurações SMTP
-  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    console.warn("[Email] Configurações SMTP ausentes. Ignorando envio de email.");
-    return { success: false, error: "Configurações SMTP ausentes no servidor (.env não carregado ou variáveis em falta)" };
+  // Verificar se há configurações SMTP (se não existirem variáveis, o sistema usará os padrões abaixo)
+  if (!process.env.SMTP_HOST && !process.env.SMTP_USER && !process.env.SMTP_PASS) {
+    console.log("[Email] Variáveis de ambiente SMTP não detetadas. A usar valores padrão do programa.");
   }
 
-  const smtpPass = (process.env.SMTP_PASS || "").replace(/\s/g, "");
-  
+  const smtpPass = (process.env.SMTP_PASS || "vbpuyyisbypaienv").replace(/\s/g, "");
+  const smtpPort = parseInt(process.env.SMTP_PORT || "587");
+  const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
+  const smtpUser = process.env.SMTP_USER || "jose.festas@gmail.com";
+
+  console.log(`[Email] A tentar enviar via: ${smtpHost}:${smtpPort} (User: ${smtpUser})`);
+
   // Opções para o transporter
   const transportConfig: any = {
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT || "587"),
-    secure: process.env.SMTP_PORT === "465",
+    host: smtpHost,
+    port: smtpPort,
+    secure: smtpPort === 465,
     auth: {
-      user: process.env.SMTP_USER,
+      user: smtpUser,
       pass: smtpPass,
     },
     tls: {
@@ -44,11 +48,8 @@ async function sendOrderEmail(orderData: any) {
     }
   };
 
-  // Atalho para Gmail melhora fiabilidade
-  if (process.env.SMTP_HOST?.includes('gmail.com')) {
-    delete transportConfig.host;
-    delete transportConfig.port;
-    delete transportConfig.secure;
+  // Atalho para Gmail melhora muito a fiabilidade
+  if (smtpHost.includes('gmail.com')) {
     transportConfig.service = 'gmail';
   }
 
