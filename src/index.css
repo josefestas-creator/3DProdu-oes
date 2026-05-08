@@ -44,10 +44,12 @@
   text-shadow: 
     1px 1px 0px #002e8a,
     2px 2px 0px #002e8a,
-    3px 3px 0px #002e8a,
-    4px 4px 6px rgba(0,0,0,0.6);
-  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
-  transform: translateY(-2px);
+    3px 3px 0px #001f5e,
+    4px 4px 6px rgba(0,0,0,0.6),
+    0px 0px 10px rgba(0,71,201,0.4);
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+  transform: translateY(-2px) rotateX(10deg);
+  display: inline-block;
 }
 
 .glass-panel-mobile {

@@ -328,7 +328,10 @@ const Logo = ({ size = "md", className = "" }: { size?: "sm" | "md" | "lg", clas
   };
   
   return (
-    <div className={`${sizeClasses[size]} signature-gradient flex items-center justify-center text-white font-black shadow-lg ${className} border-b-2 border-black/20 transform active:scale-95 transition-all cursor-pointer`}>
+    <div 
+      className={`${sizeClasses[size]} signature-gradient flex items-center justify-center text-white font-black shadow-lg ${className} border-b-4 border-black/30 transform active:scale-95 transition-all cursor-pointer`}
+      style={{ perspective: '500px' }}
+    >
       <span className="text-3d-relief tracking-tighter">
         3D
       </span>
@@ -1497,6 +1500,7 @@ const ProfileView = ({
             <ClipboardList size={20} />
             Pedir Nova Peça / Alteração
           </button>
+
           <button 
             onClick={() => window.open(WHATSAPP_LINK, '_blank')}
             className="bg-[#25D366] text-white font-bold px-8 py-4 rounded-full flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all hover:bg-[#128C7E]"
@@ -1665,6 +1669,10 @@ const ShopView = ({
         </div>
       ))}
     </div>
+
+    <footer className="mt-12 mb-8 text-center opacity-30">
+      <p className="text-[9px] font-black uppercase tracking-[0.2em]">Versão 1.2.5 - 3D PRODUÇÕES</p>
+    </footer>
   </motion.div>
 );
 
