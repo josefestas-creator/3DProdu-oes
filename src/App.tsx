@@ -1468,6 +1468,22 @@ const ProfileView = ({
 }) => {
   const isAdmin = userEmail.toLowerCase() === 'jose.festas@gmail.com';
 
+  const displayedProducts = React.useMemo(() => {
+    if (isAdmin) return products;
+    return products.filter(p => {
+      const name = p.name ? p.name.toLowerCase() : '';
+      const category = p.category ? p.category.toLowerCase() : '';
+      const desc = p.description ? p.description.toLowerCase() : '';
+      
+      const containsAlza = 
+        name.includes('alza') || name.includes('alça') || name.includes('alca') ||
+        category.includes('alza') || category.includes('alça') || category.includes('alca') ||
+        desc.includes('alza') || desc.includes('alça') || desc.includes('alca');
+        
+      return !containsAlza;
+    });
+  }, [products, isAdmin]);
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -1525,7 +1541,7 @@ const ProfileView = ({
 
       <section className="grid grid-cols-3 gap-4 mb-12">
         <div className="glass-card p-4 rounded-2xl text-center">
-          <div className="text-xl font-black text-primary">{products.length}</div>
+          <div className="text-xl font-black text-primary">{displayedProducts.length}</div>
           <div className="text-[10px] font-bold uppercase tracking-widest text-outline">Produtos</div>
         </div>
         <div className="glass-card p-4 rounded-2xl text-center">
@@ -1546,12 +1562,12 @@ const ProfileView = ({
         </button>
       </section>
 
-      <HeroShuffle products={products} />
+      <HeroShuffle products={displayedProducts} />
 
       <div className="mb-8">
         <h3 className="text-xl font-black tracking-tight text-on-surface mb-4 font-headline">Portfólio</h3>
         <div className="grid grid-cols-2 gap-4">
-          {[...products].sort((a,b) => (b.order || 0) - (a.order || 0)).slice(0, 4).map(product => (
+          {[...displayedProducts].sort((a,b) => (b.order || 0) - (a.order || 0)).slice(0, 4).map(product => (
             <div key={product.id} className="aspect-square glass-card rounded-2xl overflow-hidden shadow-sm">
               <img src={product.imageUrl || undefined} alt={product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             </div>
