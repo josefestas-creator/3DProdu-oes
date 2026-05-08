@@ -2,8 +2,31 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#0047c9" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>3D Produções</title>
+    <style>
+      :root {
+        --color-primary: #0047c9;
+        --color-surface: #f8faff;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: var(--color-surface);
+        overflow-x: hidden;
+        width: 100%;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #root {
+        width: 100%;
+        min-height: 100vh;
+        max-width: 100vw;
+        overflow-x: hidden;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

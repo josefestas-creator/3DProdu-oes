@@ -37,6 +37,20 @@
 
 .signature-gradient {
   background: linear-gradient(135deg, #0047c9 0%, #005cff 100%);
+  @apply shadow-[inset_-2px_-2px_4px_rgba(0,0,0,0.3),inset_2px_2px_4px_rgba(255,255,255,0.2)];
+}
+
+.text-3d-relief {
+  text-shadow: 
+    1px 1px 0px #002e8a,
+    2px 2px 0px #002e8a,
+    3px 3px 0px #002e8a,
+    4px 4px 4px rgba(0,0,0,0.5);
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+}
+
+.glass-panel-mobile {
+  @apply rounded-[1.5rem] sm:rounded-[2.5rem] overflow-hidden;
 }
 
 .no-scrollbar::-webkit-scrollbar {

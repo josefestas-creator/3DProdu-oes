@@ -264,7 +264,7 @@ const HeroShuffle = ({ products }: { products: Product[] }) => {
   if (latestProducts.length === 0 || !latestProducts[currentIndex]) return null;
 
   return (
-    <div className="relative w-full aspect-[16/9] rounded-[2.5rem] overflow-hidden glass-panel border border-white/40 shadow-2xl mb-8 group">
+    <div className="relative w-full aspect-[16/9] glass-panel-mobile glass-panel border border-white/40 shadow-2xl mb-8 group">
       <AnimatePresence mode="wait">
         <motion.div
           key={latestProducts[currentIndex].id}
@@ -322,14 +322,16 @@ const HeroShuffle = ({ products }: { products: Product[] }) => {
 
 const Logo = ({ size = "md", className = "" }: { size?: "sm" | "md" | "lg", className?: string }) => {
   const sizeClasses = {
-    sm: "w-8 h-8 rounded-lg text-[10px]",
-    md: "w-16 h-16 rounded-2xl text-xl",
-    lg: "w-24 h-24 rounded-3xl text-3xl"
+    sm: "w-9 h-9 rounded-xl text-[12px]",
+    md: "w-16 h-16 rounded-2xl text-2xl",
+    lg: "w-24 h-24 rounded-[2rem] text-4xl"
   };
   
   return (
-    <div className={`${sizeClasses[size]} signature-gradient flex items-center justify-center text-white font-black shadow-lg ${className}`}>
-      3D
+    <div className={`${sizeClasses[size]} signature-gradient flex items-center justify-center text-white font-black shadow-lg ${className} border-b-2 border-black/20 transform active:scale-95 transition-all cursor-pointer`}>
+      <span className="text-3d-relief tracking-tighter">
+        3D
+      </span>
     </div>
   );
 };
@@ -600,43 +602,45 @@ const BottomNav = ({ activeView, setView, cartCount, isAdmin, hasPendingOrders }
   isAdmin: boolean;
   hasPendingOrders?: boolean;
 }) => (
-  <nav className="fixed bottom-0 left-0 w-full bg-white/70 backdrop-blur-2xl flex justify-around items-center h-20 px-4 pb-safe z-50 rounded-t-2xl shadow-[0_-4px_24px_rgba(0,71,201,0.06)] border-t border-blue-100/30">
+  <nav className="fixed bottom-0 left-0 w-full bg-white/80 backdrop-blur-3xl flex justify-around items-center h-[72px] sm:h-20 px-2 pb-safe z-50 rounded-t-[1.5rem] shadow-[0_-8px_30px_rgba(0,71,201,0.08)] border-t border-white/40">
     <button 
       onClick={() => setView('profile')}
-      className={`flex flex-col items-center justify-center px-4 py-1 transition-all duration-200 ${activeView === 'profile' ? 'text-primary' : 'text-outline'}`}
+      className={`flex-1 flex flex-col items-center justify-center py-2 transition-all duration-300 active:scale-90 ${activeView === 'profile' ? 'text-primary' : 'text-outline'}`}
     >
-      <User size={24} className={activeView === 'profile' ? 'fill-primary/20' : ''} />
-      <span className="text-[10px] font-bold uppercase tracking-widest mt-1">Perfil</span>
+      <User size={26} className={activeView === 'profile' ? 'fill-primary/20' : ''} />
+      <span className="text-[9px] font-black uppercase tracking-widest mt-1 opacity-70">Perfil</span>
     </button>
     <button 
       onClick={() => setView('shop')}
-      className={`flex flex-col items-center justify-center px-4 py-1 transition-all duration-200 ${activeView === 'shop' || activeView === 'product_detail' ? 'text-primary' : 'text-outline'}`}
+      className={`flex-1 flex flex-col items-center justify-center py-2 transition-all duration-300 active:scale-90 ${activeView === 'shop' || activeView === 'product_detail' ? 'text-primary' : 'text-outline'}`}
     >
-      <Home size={24} className={activeView === 'shop' || activeView === 'product_detail' ? 'fill-primary/20' : ''} />
-      <span className="text-[10px] font-bold uppercase tracking-widest mt-1">Loja</span>
+      <Home size={26} className={activeView === 'shop' || activeView === 'product_detail' ? 'fill-primary/20' : ''} />
+      <span className="text-[9px] font-black uppercase tracking-widest mt-1 opacity-70">Loja</span>
     </button>
     <button 
       onClick={() => setView('cart')}
-      className={`flex flex-col items-center justify-center px-4 py-1 transition-all duration-200 relative ${activeView === 'cart' ? 'text-primary' : 'text-outline'}`}
+      className={`flex-1 flex flex-col items-center justify-center py-2 transition-all duration-300 relative active:scale-90 ${activeView === 'cart' ? 'text-primary' : 'text-outline'}`}
     >
-      <ShoppingBag size={24} className={activeView === 'cart' ? 'fill-primary/20' : ''} />
-      {cartCount > 0 && (
-        <span className="absolute top-0 right-2 w-4 h-4 signature-gradient text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-          {cartCount}
-        </span>
-      )}
-      <span className="text-[10px] font-bold uppercase tracking-widest mt-1">Carrinho</span>
+      <div className="relative">
+        <ShoppingBag size={26} className={activeView === 'cart' ? 'fill-primary/20' : ''} />
+        {cartCount > 0 && (
+          <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 border-2 border-white text-white text-[8px] font-black rounded-full flex items-center justify-center shadow-md">
+            {cartCount}
+          </span>
+        )}
+      </div>
+      <span className="text-[9px] font-black uppercase tracking-widest mt-1 opacity-70">Carrinho</span>
     </button>
     {isAdmin && (
       <button 
         onClick={() => setView('admin')}
-        className={`flex flex-col items-center justify-center px-4 py-1 transition-all duration-200 relative ${activeView === 'admin' ? 'text-primary' : 'text-outline'}`}
+        className={`flex-1 flex flex-col items-center justify-center py-2 transition-all duration-300 relative active:scale-90 ${activeView === 'admin' ? 'text-primary' : 'text-outline'}`}
       >
-        <Shield size={24} className={activeView === 'admin' ? 'fill-primary/20' : ''} />
+        <Shield size={26} className={activeView === 'admin' ? 'fill-primary/20' : ''} />
         {hasPendingOrders && (
-          <span className="absolute top-1 right-3 w-2.5 h-2.5 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse" />
+          <span className="absolute top-2 right-1/2 translate-x-4 w-2 h-2 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,1)] animate-pulse" />
         )}
-        <span className="text-[10px] font-bold uppercase tracking-widest mt-1">Admin</span>
+        <span className="text-[9px] font-black uppercase tracking-widest mt-1 opacity-70">Admin</span>
       </button>
     )}
   </nav>
