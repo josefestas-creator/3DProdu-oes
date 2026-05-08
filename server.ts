@@ -14,25 +14,24 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Configurações Mestre (Hardcoded Fallbacks)
+const DEFAULT_ADMIN = "jose.festas@gmail.com";
+const DEFAULT_PASS = "vbpuyyisbypaienv"; // Senha de aplicação sem espaços
+
 // Auxiliar: Enviar Email de Encomenda
 async function sendOrderEmail(orderData: any) {
   const { cart, total, userEmail, mbWayPhone, shippingMethod, shippingAddress } = orderData;
-  const adminEmail = process.env.ADMIN_EMAIL || "jose.festas@gmail.com";
+  const adminEmail = process.env.ADMIN_EMAIL || DEFAULT_ADMIN;
 
   console.log("[Email] Iniciando envio. Configurações detetadas:");
-  console.log(`[Email] HOST: ${process.env.SMTP_HOST}, PORT: ${process.env.SMTP_PORT}, USER: ${process.env.SMTP_USER}`);
-
-  // Verificar se há configurações SMTP (se não existirem variáveis, o sistema usará os padrões abaixo)
-  if (!process.env.SMTP_HOST && !process.env.SMTP_USER && !process.env.SMTP_PASS) {
-    console.log("[Email] Variáveis de ambiente SMTP não detetadas. A usar valores padrão do programa.");
-  }
-
-  const smtpPass = (process.env.SMTP_PASS || "vbpuyyisbypaienv").replace(/\s/g, "");
+  
+  const smtpPass = (process.env.SMTP_PASS || DEFAULT_PASS).replace(/\s/g, "");
   const smtpPort = parseInt(process.env.SMTP_PORT || "587");
   const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
-  const smtpUser = process.env.SMTP_USER || "jose.festas@gmail.com";
+  const smtpUser = process.env.SMTP_USER || DEFAULT_ADMIN;
+  const smtpFrom = process.env.SMTP_FROM || DEFAULT_ADMIN;
 
-  console.log(`[Email] A tentar enviar via: ${smtpHost}:${smtpPort} (User: ${smtpUser})`);
+  console.log(`[Email] Tentativa de envio: ${smtpHost}:${smtpPort} (User: ${smtpUser})`);
 
   // Opções para o transporter
   const transportConfig: any = {
@@ -71,7 +70,7 @@ async function sendOrderEmail(orderData: any) {
   ` : '<p><strong>Levantamento:</strong> Em mãos</p>';
 
   const mailOptions = {
-    from: process.env.SMTP_USER, // Usar apenas o email para evitar filtros
+    from: smtpFrom, // Usar o email configurado
     to: adminEmail,
     subject: `Encomenda: €${total.toFixed(2)}`,
     html: `
@@ -193,8 +192,8 @@ async function startServer() {
   // API: Verificar se o utilizador é administrador
   app.post("/api/admin/check", (req, res) => {
     const { email } = req.body;
-    const adminEmail = process.env.ADMIN_EMAIL || "jose.festas@gmail.com";
-    res.json({ isAdmin: email === adminEmail });
+    const adminEmail = process.env.ADMIN_EMAIL || DEFAULT_ADMIN;
+    res.json({ isAdmin: email.toLowerCase() === adminEmail.toLowerCase() });
   });
 
   // Vite ou Produção

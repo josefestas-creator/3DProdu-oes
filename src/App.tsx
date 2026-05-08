@@ -231,8 +231,13 @@ const splitImageIntoThree = (base64Str: string, quality = 0.6): Promise<string[]
 
 const HeroShuffle = ({ products }: { products: Product[] }) => {
   const latestProducts = useMemo(() => {
+    if (!products || products.length === 0) return [];
     // Get last 6 products or all if less than 6
-    return [...products].sort((a, b) => (b.order || 0) - (a.order || 0)).slice(0, 6);
+    return [...products].sort((a, b) => {
+      const orderA = b.order || 0;
+      const orderB = a.order || 0;
+      return orderA - orderB;
+    }).slice(0, 6);
   }, [products]);
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -242,18 +247,21 @@ const HeroShuffle = ({ products }: { products: Product[] }) => {
     
     const interval = setInterval(() => {
       setCurrentIndex(prev => {
+        if (latestProducts.length <= 1) return 0;
         let nextIndex;
+        let attempts = 0;
         do {
           nextIndex = Math.floor(Math.random() * latestProducts.length);
-        } while (nextIndex === prev && latestProducts.length > 1);
+          attempts++;
+        } while (nextIndex === prev && attempts < 10);
         return nextIndex;
       });
-    }, 4500); // Slightly longer for better viewing
+    }, 5000); // Change every 5 seconds
 
     return () => clearInterval(interval);
-  }, [latestProducts]);
+  }, [latestProducts.length]); // Use length to avoid restarting on content change unless count change
 
-  if (latestProducts.length === 0) return null;
+  if (latestProducts.length === 0 || !latestProducts[currentIndex]) return null;
 
   return (
     <div className="relative w-full aspect-[16/9] rounded-[2.5rem] overflow-hidden glass-panel border border-white/40 shadow-2xl mb-8 group">
@@ -266,25 +274,30 @@ const HeroShuffle = ({ products }: { products: Product[] }) => {
           transition={{ duration: 1, ease: "easeOut" }}
           className="absolute inset-0"
         >
+          <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
+            <RotateCw className="animate-spin text-white/20" size={32} />
+          </div>
           <img 
             src={latestProducts[currentIndex].imageUrl} 
             alt={latestProducts[currentIndex].name}
             className="w-full h-full object-cover"
+            loading="lazy"
             referrerPolicy="no-referrer"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-8">
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end p-6 sm:p-8">
             <motion.div
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.3 }}
+              className="max-w-[80%]"
             >
-              <span className="inline-block px-3 py-1 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-full mb-2">
-                Última Novidade
+              <span className="inline-block px-3 py-1 bg-primary text-white text-[9px] font-black uppercase tracking-widest rounded-full mb-3 shadow-lg">
+                Novidade
               </span>
-              <h3 className="text-2xl font-black text-white tracking-tight mb-1 font-headline">
+              <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-tight mb-2 font-headline drop-shadow-md">
                 {latestProducts[currentIndex].name}
               </h3>
-              <p className="text-white/70 text-sm font-medium line-clamp-1">
+              <p className="text-white/80 text-xs sm:text-sm font-medium line-clamp-2 drop-shadow-sm">
                 {latestProducts[currentIndex].description}
               </p>
             </motion.div>
@@ -293,12 +306,13 @@ const HeroShuffle = ({ products }: { products: Product[] }) => {
       </AnimatePresence>
       
       {/* Indicators */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-3 z-10 p-2">
         {latestProducts.map((_, idx) => (
           <button
             key={idx}
             onClick={() => setCurrentIndex(idx)}
-            className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentIndex ? 'w-6 bg-white' : 'w-1.5 bg-white/40'}`}
+            className={`h-2 rounded-full transition-all duration-300 ${idx === currentIndex ? 'w-8 bg-white shadow-lg' : 'w-2 bg-white/40 shadow-sm'}`}
+            aria-label={`Ver slide ${idx + 1}`}
           />
         ))}
       </div>
@@ -2488,6 +2502,8 @@ export default function App() {
       if (firestoreProducts.length > 0) {
         console.log("Firestore: Produtos carregados com sucesso.");
         setProducts(firestoreProducts);
+        // Clear local storage potential conflicts
+        localStorage.setItem('3dproducoes_products', JSON.stringify(firestoreProducts));
       } else {
         console.log("Firestore: Nenhum produto encontrado no banco. Usando locais.");
       }
