@@ -18,24 +18,41 @@ const __dirname = path.dirname(__filename);
 const DEFAULT_ADMIN = "jose.festas@gmail.com";
 const DEFAULT_PASS = "vbpuyyisbypaienv"; // Senha de aplicação sem espaços
 
+let customSmtpPass: string | null = null;
+
+function getSmtpPass() {
+  if (customSmtpPass) return customSmtpPass;
+  if (process.env.SMTP_PASS) return process.env.SMTP_PASS.replace(/\s/g, "");
+  return DEFAULT_PASS;
+}
+
 // Auxiliar: Enviar Email de Encomenda
 async function sendOrderEmail(orderData: any) {
   const { cart, total, userEmail, mbWayPhone, shippingMethod, shippingAddress } = orderData;
   const adminEmail = process.env.ADMIN_EMAIL || DEFAULT_ADMIN;
 
-  console.log("[Email] Iniciando envio. Configurações detetadas:");
-  
-  const smtpPass = (process.env.SMTP_PASS || DEFAULT_PASS).replace(/\s/g, "");
+  console.log("=================================================");
+  console.log(`[Email] NOTIFICAÇÃO DE ENCOMENDA RECEBIDA PARA: ${adminEmail}`);
+  console.log(`[Email] Cliente: ${userEmail || 'Convidado'} | MB Way: ${mbWayPhone}`);
+  console.log(`[Email] Total: €${Number(total || 0).toFixed(2)} | Envio: ${shippingMethod}`);
+  console.log("=================================================");
+
+  const smtpPass = getSmtpPass();
   const smtpPort = parseInt(process.env.SMTP_PORT || "587");
   const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
   const smtpUser = process.env.SMTP_USER || DEFAULT_ADMIN;
   const smtpFrom = process.env.SMTP_FROM || DEFAULT_ADMIN;
 
-  console.log(`[Email] Tentativa de envio: ${smtpHost}:${smtpPort} (User: ${smtpUser})`);
+  // Lista de destinatários: Administrador + Cliente (se fornecido)
+  const recipients = [adminEmail];
+  if (userEmail && typeof userEmail === 'string' && userEmail.includes('@') && userEmail.toLowerCase() !== 'convidado' && userEmail.toLowerCase() !== adminEmail.toLowerCase()) {
+    recipients.push(userEmail.trim());
+  }
+
+  console.log(`[Email] Destinatários: ${recipients.join(', ')} | Servidor: ${smtpHost}:${smtpPort} (User: ${smtpUser})`);
 
   let transporter;
   if (smtpHost.includes('gmail.com')) {
-    console.log("[Email] Configurando transporter específico para Gmail...");
     transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
@@ -44,7 +61,6 @@ async function sendOrderEmail(orderData: any) {
       }
     });
   } else {
-    console.log(`[Email] Configurando transporter SMTP genérico (${smtpHost}:${smtpPort})...`);
     transporter = nodemailer.createTransport({
       host: smtpHost,
       port: smtpPort,
@@ -59,57 +75,62 @@ async function sendOrderEmail(orderData: any) {
     });
   }
 
-  console.log(`[Email] A preparar envio para ${adminEmail} via ${smtpHost}...`);
-  console.log(`[Email] Pass-Check: Len=${smtpPass.length}, Last4=${smtpPass.slice(-4)}`);
-
-  const cartHtml = cart.map((item: any) => `
+  const itemsList = Array.isArray(cart) ? cart : [];
+  const cartHtml = itemsList.map((item: any) => `
     <li>
-      <strong>${item.name}</strong> - ${item.quantity}x €${item.price.toFixed(2)}
+      <strong>${item.name || 'Item'}</strong> - ${item.quantity || 1}x €${Number(item.price || 0).toFixed(2)}
     </li>
   `).join('');
 
   const addressHtml = shippingMethod === 'mail' && shippingAddress ? `
     <p><strong>Morada de Envio:</strong><br>
-    ${shippingAddress.street || shippingAddress.address}<br>
-    ${shippingAddress.postalCode} ${shippingAddress.city}</p>
+    ${shippingAddress.street || shippingAddress.address || ''}<br>
+    ${shippingAddress.postalCode || ''} ${shippingAddress.city || ''}</p>
   ` : '<p><strong>Levantamento:</strong> Em mãos</p>';
 
   const mailOptions = {
-    from: smtpFrom, // Usar o email configurado
-    to: adminEmail,
-    subject: `Encomenda: €${total.toFixed(2)}`,
+    from: `"3D Produções" <${smtpFrom}>`,
+    to: recipients.join(', '),
+    replyTo: (userEmail && userEmail.includes('@') && userEmail !== 'Convidado') ? userEmail : adminEmail,
+    subject: `[Nova Encomenda 3D] Total: €${Number(total || 0).toFixed(2)} (${userEmail || mbWayPhone})`,
     html: `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
-        <h2 style="color: #333;">Nova Encomenda!</h2>
-        <p>Recebeu um novo pedido na 3D Produções (Site).</p>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; padding: 24px; border-radius: 12px; background-color: #ffffff;">
+        <h2 style="color: #0047C9; margin-top: 0;">Nova Encomenda Registada!</h2>
+        <p style="color: #555;">Resumo do pedido realizado na loja online <strong>3D Produções</strong>.</p>
         
-        <hr style="border: 0; border-top: 1px solid #eee;">
+        <hr style="border: 0; border-top: 1px solid #eeeeee; margin: 20px 0;">
         
-        <h3>Detalhes do Cliente:</h3>
-        <p><strong>Email:</strong> ${userEmail || 'Convidado'}</p>
-        <p><strong>Telemóvel MB Way:</strong> ${mbWayPhone}</p>
+        <h3 style="color: #333;">Dados da Encomenda:</h3>
+        <p style="margin: 4px 0;"><strong>Email:</strong> ${userEmail || 'Convidado'}</p>
+        <p style="margin: 4px 0;"><strong>Telemóvel MB Way:</strong> ${mbWayPhone}</p>
         
-        <h3>Items:</h3>
-        <ul>${cartHtml}</ul>
+        <h3 style="color: #333; margin-top: 20px;">Itens encomendados:</h3>
+        <ul style="padding-left: 20px; line-height: 1.6;">${cartHtml}</ul>
         
-        <p style="font-size: 1.2em;"><strong>Total: €${total.toFixed(2)}</strong></p>
+        <div style="background-color: #f5f8ff; padding: 12px 16px; border-radius: 8px; font-size: 1.2em; color: #0047C9; margin: 16px 0;">
+          <strong>Total: €${Number(total || 0).toFixed(2)}</strong>
+        </div>
         
-        <h3>Envio:</h3>
+        <h3 style="color: #333;">Método de Envio:</h3>
         ${addressHtml}
         
-        <hr style="border: 0; border-top: 1px solid #eee;">
+        <div style="background-color: #fff9e6; border: 1px solid #ffe58f; padding: 12px 16px; border-radius: 8px; margin-top: 20px; font-size: 0.9em; color: #8a6d3b;">
+          <strong>Pagamento via MB Way:</strong> Por favor, envie o valor de <strong>€${Number(total || 0).toFixed(2)}</strong> para o número de telemóvel associado à loja.
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid #eeeeee; margin: 20px 0;">
         
-        <p style="font-size: 0.8em; color: #777;">Mensagem automática do sistema.</p>
+        <p style="font-size: 0.8em; color: #888; text-align: center;">Notificação automática gerada pela aplicação 3D Produções.</p>
       </div>
     `,
   };
 
   try {
     const info = await transporter.sendMail(mailOptions);
-    console.log("[Email] Sucesso TOTAL:", info.messageId, info.response);
-    return { success: true, info: info.response };
+    console.log("[Email] SUCESSO NO ENVIO DO EMAIL:", info.messageId, info.response);
+    return { success: true, info: info.response, recipients };
   } catch (error: any) {
-    console.error("[Email] ERRO NO ENVIO:", error.message);
+    console.error("[Email] AVISO / ERRO NO ENVIO SMTP:", error.message);
     return { success: false, error: error.message };
   }
 }
@@ -205,10 +226,32 @@ async function startServer() {
     res.json({ isAdmin: (email || '').toLowerCase() === adminEmail.toLowerCase() });
   };
 
+  const handleTestEmail = async (req: express.Request, res: express.Response) => {
+    const { pass } = req.body;
+    if (pass && typeof pass === 'string' && pass.trim()) {
+      customSmtpPass = pass.trim().replace(/\s/g, "");
+      console.log("[Server] Atualizada palavra-passe de aplicação para envio em memória.");
+    }
+    try {
+      const emailResult = await sendOrderEmail({
+        cart: [{ name: "Impressão 3D - Teste de Notificação", quantity: 1, price: 15.00 }],
+        total: 15.00,
+        userEmail: DEFAULT_ADMIN,
+        mbWayPhone: "910000000",
+        shippingMethod: "mail",
+        shippingAddress: { street: "Rua do Teste, 123", postalCode: "4000-000", city: "Porto" }
+      });
+      res.json(emailResult);
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  };
+
   // Mapear ALL rotas possíveis para evitar 404 (com ou sem slash, com ou sem netlify prefix)
   app.post(["/api/checkout", "/api/checkout/", "/.netlify/functions/api/checkout", "/.netlify/functions/api/checkout/"], handleCheckout);
   app.post(["/api/notify-order", "/api/notify-order/", "/.netlify/functions/api/notify-order", "/.netlify/functions/api/notify-order/"], handleNotifyOrder);
   app.post(["/api/admin/check", "/api/admin/check/", "/.netlify/functions/api/admin/check", "/.netlify/functions/api/admin/check/"], handleAdminCheck);
+  app.post(["/api/test-email", "/api/test-email/"], handleTestEmail);
 
   // Fallbacks adicionais de GET para teste rápido no browser se necessário
   app.get(["/api/health", "/api/health/"], (req, res) => res.json({ status: "online", time: new Date().toISOString() }));

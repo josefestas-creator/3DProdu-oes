@@ -320,7 +320,7 @@ const HeroShuffle = ({ products }: { products: Product[] }) => {
   );
 };
 
-const Logo = ({ size = "md", className = "" }: { size?: "sm" | "md" | "lg", className?: string }) => {
+const Logo = ({ size = "md", className = "", hasNotification = false }: { size?: "sm" | "md" | "lg", className?: string, hasNotification?: boolean }) => {
   const sizeClasses = {
     sm: "w-9 h-9 rounded-xl text-[12px]",
     md: "w-16 h-16 rounded-2xl text-2xl",
@@ -328,13 +328,21 @@ const Logo = ({ size = "md", className = "" }: { size?: "sm" | "md" | "lg", clas
   };
   
   return (
-    <div 
-      className={`${sizeClasses[size]} signature-gradient flex items-center justify-center text-white font-black shadow-lg ${className} border-b-4 border-black/30 transform active:scale-95 transition-all cursor-pointer`}
-      style={{ perspective: '500px' }}
-    >
-      <span className="text-3d-relief tracking-tighter">
-        3D
-      </span>
+    <div className="relative inline-flex items-center justify-center">
+      <div 
+        className={`${sizeClasses[size]} signature-gradient flex items-center justify-center text-white font-black shadow-lg ${className} border-b-4 border-black/30 transform active:scale-95 transition-all cursor-pointer`}
+        style={{ perspective: '500px' }}
+      >
+        <span className="text-3d-relief tracking-tighter">
+          3D
+        </span>
+      </div>
+      {hasNotification && (
+        <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 z-20 pointer-events-none">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-red-600 border-2 border-white shadow-md"></span>
+        </span>
+      )}
     </div>
   );
 };
@@ -526,7 +534,9 @@ const Header = ({
   searchQuery,
   setSearchQuery,
   isAdmin = false,
-  onGoToAdmin
+  onGoToAdmin,
+  hasPendingOrders = false,
+  onLogoClick
 }: { 
   title: string; 
   showSearch?: boolean; 
@@ -536,6 +546,8 @@ const Header = ({
   setSearchQuery?: (q: string) => void;
   isAdmin?: boolean;
   onGoToAdmin?: () => void;
+  hasPendingOrders?: boolean;
+  onLogoClick?: () => void;
 }) => {
   const [isSearching, setIsSearching] = useState(false);
 
@@ -548,12 +560,16 @@ const Header = ({
           </button>
         )}
         {!isSearching && (
-          <>
-            <Logo size="sm" />
-            <h1 className="text-xl font-black tracking-tight text-on-surface font-headline truncate" style={{ textShadow: '1px 1px 0px #c3c5d9', letterSpacing: '-0.02em' }}>
+          <div 
+            onClick={onLogoClick || onGoToAdmin} 
+            className="flex items-center gap-2 cursor-pointer group"
+            title={hasPendingOrders ? "Nova encomenda pendente! Clique para ver." : "3D Produções"}
+          >
+            <Logo size="sm" hasNotification={hasPendingOrders} />
+            <h1 className="text-xl font-black tracking-tight text-on-surface font-headline truncate group-hover:text-primary transition-colors flex items-center gap-1.5" style={{ textShadow: '1px 1px 0px #c3c5d9', letterSpacing: '-0.02em' }}>
               {title}
             </h1>
-          </>
+          </div>
         )}
         {isSearching && (
           <div className="flex items-center gap-2 w-full">
@@ -1703,6 +1719,7 @@ const AdminView = ({
   statusMessage,
   setStatusMessage,
   orders,
+  setOrders,
   setModal
 }: { 
   products: Product[]; 
@@ -1715,12 +1732,16 @@ const AdminView = ({
   statusMessage: string | null;
   setStatusMessage: (msg: string | null) => void;
   orders: any[];
+  setOrders: React.Dispatch<React.SetStateAction<any[]>>;
   setModal: (modal: any) => void;
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'products' | 'orders'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'email'>('products');
+  const [appPassInput, setAppPassInput] = useState('');
+  const [isTestingEmail, setIsTestingEmail] = useState(false);
+  const [emailTestLog, setEmailTestLog] = useState<string | null>(null);
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   
   useEffect(() => {
@@ -1960,16 +1981,16 @@ const AdminView = ({
         </div>
       </div>
 
-      <div className="flex gap-4 mb-8">
+      <div className="flex gap-2 sm:gap-4 mb-8">
         <button 
           onClick={() => setActiveTab('products')}
-          className={`flex-1 h-12 rounded-2xl font-bold transition-all ${activeTab === 'products' ? 'bg-primary text-white shadow-lg' : 'bg-white/50 text-on-surface-variant'}`}
+          className={`flex-1 h-12 rounded-2xl font-bold transition-all text-xs sm:text-sm ${activeTab === 'products' ? 'bg-primary text-white shadow-lg' : 'bg-white/50 text-on-surface-variant'}`}
         >
           Produtos
         </button>
         <button 
           onClick={() => setActiveTab('orders')}
-          className={`flex-1 h-12 rounded-2xl font-bold transition-all relative ${activeTab === 'orders' ? 'bg-primary text-white shadow-lg' : 'bg-white/50 text-on-surface-variant'}`}
+          className={`flex-1 h-12 rounded-2xl font-bold transition-all text-xs sm:text-sm relative ${activeTab === 'orders' ? 'bg-primary text-white shadow-lg' : 'bg-white/50 text-on-surface-variant'}`}
         >
           Encomendas
           {orders.filter(o => o.status === 'pending' || o.status === 'new' || o.status === 'whatsapp_pending').length > 0 && (
@@ -1977,6 +1998,12 @@ const AdminView = ({
               {orders.filter(o => o.status === 'pending' || o.status === 'new' || o.status === 'whatsapp_pending').length}
             </span>
           )}
+        </button>
+        <button 
+          onClick={() => setActiveTab('email')}
+          className={`flex-1 h-12 rounded-2xl font-bold transition-all text-xs sm:text-sm ${activeTab === 'email' ? 'bg-primary text-white shadow-lg' : 'bg-white/50 text-on-surface-variant'}`}
+        >
+          Email Admin
         </button>
       </div>
 
@@ -2001,7 +2028,7 @@ const AdminView = ({
         )}
       </AnimatePresence>
 
-      {activeTab === 'products' ? (
+      {activeTab === 'products' && (
         <>
           {(isAdding || editingId) ? (
         <div className="glass-panel p-6 rounded-[2rem] space-y-4 mb-8">
@@ -2242,7 +2269,9 @@ const AdminView = ({
         ))}
       </div>
     </>
-  ) : (
+  )}
+
+  {activeTab === 'orders' && (
     <div className="space-y-4">
       <div className="flex items-center justify-between px-1">
         <h3 className="text-xs font-black uppercase tracking-widest text-on-surface-variant">Histórico de Encomendas</h3>
@@ -2305,15 +2334,15 @@ const AdminView = ({
             <div className="flex gap-2">
               <button 
                 onClick={async () => {
+                  setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'completed' } : o));
+                  setStatusMessage("Encomenda marcada como concluída!");
+                  setTimeout(() => setStatusMessage(null), 3000);
+
                   if (db) {
                     try {
-                      await updateDoc(doc(db, 'orders', order.id), { status: 'completed' });
-                      setStatusMessage("Encomenda marcada como concluída!");
-                      setTimeout(() => setStatusMessage(null), 3000);
+                      await setDoc(doc(db, 'orders', order.id), { status: 'completed' }, { merge: true });
                     } catch (error) {
-                      console.error("Erro ao concluir encomenda:", error);
-                      setStatusMessage("Erro ao atualizar encomenda.");
-                      setTimeout(() => setStatusMessage(null), 3000);
+                      console.warn("Aviso ao atualizar no Firestore (salvo localmente):", error);
                     }
                   }
                 }}
@@ -2329,15 +2358,15 @@ const AdminView = ({
                     message: "Tem a certeza que deseja eliminar esta encomenda?",
                     type: 'confirm',
                     onConfirm: async () => {
+                      setOrders(prev => prev.filter(o => o.id !== order.id));
+                      setStatusMessage("Encomenda eliminada com sucesso!");
+                      setTimeout(() => setStatusMessage(null), 3000);
+
                       if (db) {
                         try {
                           await deleteDoc(doc(db, 'orders', order.id));
-                          setStatusMessage("Encomenda eliminada com sucesso!");
-                          setTimeout(() => setStatusMessage(null), 3000);
                         } catch (error) {
-                          console.error("Erro ao eliminar encomenda:", error);
-                          setStatusMessage("Erro ao eliminar encomenda.");
-                          setTimeout(() => setStatusMessage(null), 3000);
+                          console.warn("Aviso ao eliminar no Firestore (removido localmente):", error);
                         }
                       }
                       setModal(prev => ({ ...prev, show: false }));
@@ -2352,6 +2381,88 @@ const AdminView = ({
           </div>
         ))
       )}
+    </div>
+  )}
+
+  {activeTab === 'email' && (
+    <div className="glass-panel p-6 rounded-[2rem] space-y-6">
+      <div>
+        <h3 className="font-bold text-lg text-on-surface mb-1 flex items-center gap-2">
+          <Mail size={22} className="text-primary" />
+          Notificações por Email do Administrador
+        </h3>
+        <p className="text-xs text-on-surface-variant">
+          Os emails de notificação de novas encomendas são enviados para: <strong className="text-primary">jose.festas@gmail.com</strong>
+        </p>
+      </div>
+
+      <div className="bg-primary/5 p-4 rounded-2xl space-y-3 border border-primary/10">
+        <h4 className="text-xs font-black uppercase tracking-widest text-primary">Como ativar os emails com o Gmail (1 minuto)</h4>
+        <ol className="text-xs text-on-surface-variant space-y-2 list-decimal list-inside">
+          <li>Aceda à sua conta Google em <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-primary font-bold underline">myaccount.google.com/apppasswords</a>.</li>
+          <li>Em "Nome da app", escreva <strong className="text-on-surface">3D Produções</strong> e clique em <strong>Criar</strong>.</li>
+          <li>O Google vai gerar um código de 16 letras (exemplo: <code className="bg-white px-1 py-0.5 rounded text-primary font-bold">abcd efgh ijkl mnop</code>).</li>
+          <li>Cole esse código no campo abaixo e clique em <strong>Guardar e Testar Envio</strong>.</li>
+        </ol>
+      </div>
+
+      <div className="space-y-3">
+        <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Palavra-passe de Aplicação do Google (16 letras)</label>
+        <input 
+          type="password" 
+          placeholder="ex: vbpuyyisbypaienv" 
+          value={appPassInput}
+          onChange={(e) => setAppPassInput(e.target.value)}
+          className="w-full h-12 px-4 bg-white/70 rounded-xl outline-none border border-primary/20 text-sm font-mono tracking-wider"
+        />
+        <button
+          onClick={async () => {
+            setIsTestingEmail(true);
+            setEmailTestLog("A enviar email de teste...");
+            try {
+              const res = await axios.post('/api/test-email', { pass: appPassInput });
+              if (res.data.success) {
+                setEmailTestLog("SUCESSO! O email de teste foi enviado para jose.festas@gmail.com. Verifique a sua caixa de entrada / spam.");
+                setStatusMessage("Email de teste enviado com sucesso!");
+              } else {
+                setEmailTestLog(`FALHA NO ENVIO: ${res.data.error || 'Erro de autenticação'}. Verifique se a senha de aplicação está correta.`);
+                setStatusMessage("Erro ao enviar email de teste.");
+              }
+            } catch (err: any) {
+              const errMsg = err.response?.data?.error || err.response?.data?.message || err.message;
+              setEmailTestLog(`ERRO: ${errMsg}`);
+              setStatusMessage("Erro ao testar envio de email.");
+            } finally {
+              setIsTestingEmail(false);
+              setTimeout(() => setStatusMessage(null), 4000);
+            }
+          }}
+          disabled={isTestingEmail}
+          className={`w-full h-12 signature-gradient text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg ${isTestingEmail ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          {isTestingEmail ? (
+            <>
+              <RotateCw size={18} className="animate-spin" />
+              A testar ligação SMTP...
+            </>
+          ) : (
+            <>
+              <Mail size={18} />
+              Guardar e Testar Envio
+            </>
+          )}
+        </button>
+
+        {emailTestLog && (
+          <div className={`p-4 rounded-xl text-xs font-mono border ${
+            emailTestLog.startsWith('SUCESSO') 
+              ? 'bg-green-500/10 border-green-500/30 text-green-700' 
+              : 'bg-red-500/10 border-red-500/30 text-red-700'
+          }`}>
+            {emailTestLog}
+          </div>
+        )}
+      </div>
     </div>
   )}
 
@@ -2431,7 +2542,23 @@ export default function App() {
       return false;
     }
   });
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('3dproducoes_orders');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error("Erro ao carregar encomendas do localStorage:", e);
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('3dproducoes_orders', JSON.stringify(orders));
+    } catch (e) {
+      console.error("Erro ao guardar encomendas no localStorage:", e);
+    }
+  }, [orders]);
   const [newOrderAlert, setNewOrderAlert] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const cartSubtotal = useMemo(() => cart.reduce((acc, item) => acc + item.price * item.quantity, 0), [cart]);
@@ -2469,29 +2596,31 @@ export default function App() {
     }
   });
 
-  // Listen for orders if admin
+  // Listen for orders
   useEffect(() => {
-    if (db && isAdmin) {
+    if (db) {
       const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(50));
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const ordersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        setOrders(prevOrders => {
-          // Check if there's a new order compared to previous state
-          if (prevOrders.length > 0 && ordersData.length > prevOrders.length) {
-            const latestOrder = ordersData[0] as any;
-            if (latestOrder.status === 'pending' || latestOrder.status === 'new' || latestOrder.status === 'whatsapp_pending') {
+        if (ordersData.length > 0) {
+          setOrders(prevOrders => {
+            if (prevOrders.length > 0 && ordersData.length > prevOrders.length) {
+              const latestOrder = ordersData[0] as any;
+              if (latestOrder.status === 'pending' || latestOrder.status === 'new' || latestOrder.status === 'whatsapp_pending') {
+                setNewOrderAlert(true);
+              }
+            } else if (prevOrders.length === 0 && ordersData.some((o: any) => o.status === 'pending' || o.status === 'new' || o.status === 'whatsapp_pending')) {
               setNewOrderAlert(true);
             }
-          }
-          return ordersData;
-        });
+            return ordersData;
+          });
+        }
       }, (error) => {
         console.error("Erro ao ouvir encomendas:", error);
       });
       return () => unsubscribe();
     }
-  }, [db, isAdmin]);
+  }, [db]);
 
   // Test Connection on Mount
   useEffect(() => {
@@ -2757,71 +2886,81 @@ export default function App() {
     });
 
     try {
-      // 1. Salvar Encomenda no Firestore (para o Alerta do Admin)
-      if (!db) {
-        throw new Error("Base de dados não disponível. Por favor, tente mais tarde.");
+      // 1. Salvar Encomenda no Firestore e no estado local
+      const newOrderData = {
+        customerEmail: userEmail || 'Convidado',
+        mbWayPhone,
+        items: cart.map(item => ({ id: item.id, name: item.name, price: item.price, quantity: item.quantity })),
+        total: cartTotal,
+        shippingMethod,
+        shippingAddress: shippingMethod === 'mail' ? shippingAddress : null,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      };
+
+      let docId = 'order-' + Date.now();
+
+      if (db) {
+        try {
+          const docRef = await addDoc(collection(db, 'orders'), newOrderData);
+          if (docRef?.id) docId = docRef.id;
+          console.log("Firestore: Encomenda guardada com sucesso.");
+        } catch (fsError: any) {
+          console.error("Aviso no Firestore, mantendo cópia local:", fsError);
+        }
       }
 
+      // Adicionar imediatamente ao estado local e ativar o alerta de ponto vermelho no logo
+      const createdOrder = { id: docId, ...newOrderData };
+      setOrders(prev => [createdOrder, ...prev.filter(o => o.id !== docId)]);
+      setNewOrderAlert(true);
+
+      // 2. Notificar por Email via Servidor
+      let emailSuccess = false;
+      let emailError: string | null = null;
       try {
-        await addDoc(collection(db, 'orders'), {
-          customerEmail: userEmail || 'Convidado',
-          mbWayPhone,
-          items: cart.map(item => ({ id: item.id, name: item.name, price: item.price, quantity: item.quantity })),
+        const response = await axios.post('/api/notify-order', {
+          cart: cart.map(item => ({
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity
+          })),
           total: cartTotal,
+          userEmail: userEmail || 'Convidado',
+          mbWayPhone,
           shippingMethod,
-          shippingAddress: shippingMethod === 'mail' ? shippingAddress : null,
-          status: 'pending',
-          createdAt: new Date().toISOString()
+          shippingAddress: shippingMethod === 'mail' ? shippingAddress : null
         });
-        console.log("Firestore: Encomenda guardada com sucesso.");
 
-        // 2. Notificar por Email via Servidor
-          let emailSuccess = false;
-          let emailError = null;
-          try {
-            const response = await axios.post('/api/notify-order', {
-              cart: cart.map(item => ({
-                name: item.name,
-                price: item.price,
-                quantity: item.quantity
-              })),
-              total: cartTotal,
-              userEmail: userEmail || 'Convidado',
-              mbWayPhone,
-              shippingMethod,
-              shippingAddress: shippingMethod === 'mail' ? shippingAddress : null
-            });
-            
-            if (response.data.success) {
-              console.log("Servidor: Notificação de email enviada com sucesso.", response.data.info);
-              emailSuccess = true;
-            } else {
-              console.error("Servidor: Falha ao enviar email:", response.data.error);
-              emailError = response.data.error;
-            }
-          } catch (apiError: any) {
-            console.error("Erro ao comunicar com a API de email:", apiError);
-            emailError = apiError.response?.data?.message || apiError.message;
-          }
-          
-          // Sucesso direto para o utilizador (manual)
-          setModal({
-            show: true,
-            title: emailSuccess ? "Encomenda Registada" : "Encomenda Registada (com aviso)",
-            message: emailSuccess 
-              ? `Obrigado! A sua encomenda foi registada com sucesso. Verifique o seu email (e pasta de Spam).\n\nPor favor, envie o valor de €${cartTotal.toFixed(2)} via MB Way para o contacto ${CONTACT_NUMBER.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3')}.`
-              : `Obrigado! A sua encomenda foi registada internamente, mas não conseguimos enviar o email de notificação.\n\nERRO DO SERVIDOR: ${emailError || 'Erro desconhecido'}\n\nPor favor, envie o valor de €${cartTotal.toFixed(2)} via MB Way para o contacto ${CONTACT_NUMBER.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3')}.`,
-            type: 'alert'
-          });
-        setCart([]);
-        setView('shop');
-        setShowMBWayModal(false);
-        setMbWayPhone('');
-        setShippingAddress({ street: '', city: '', postalCode: '' });
-      } catch (fsError: any) {
-        console.error("Erro ao guardar encomenda no Firestore:", fsError);
-        throw new Error("Não foi possível registar a encomenda no sistema. Verifique a sua ligação.");
+        if (response.data && response.data.success) {
+          console.log("[Checkout] Email de notificação enviado com sucesso:", response.data);
+          emailSuccess = true;
+        } else {
+          console.error("[Checkout] Falha ao enviar email de notificação:", response.data?.error);
+          emailError = response.data?.error || "Servidor não confirmou envio do email";
+        }
+      } catch (apiError: any) {
+        console.error("Erro ao enviar chamada de email:", apiError);
+        emailError = apiError.response?.data?.error || apiError.message;
       }
+      
+      // Sucesso para o utilizador
+      const emailMsg = emailSuccess 
+        ? `\n\n✉️ Foi enviado um email com os detalhes do pedido para ${userEmail || 'a administração'}. Verifique também a pasta de Spam.`
+        : `\n\n⚠️ Nota sobre o email: ${emailError || 'Não foi possível enviar a notificação por email neste momento'}. A sua encomenda foi registada com sucesso no sistema.`;
+
+      setModal({
+        show: true,
+        title: "Encomenda Registada com Sucesso!",
+        message: `A sua encomenda de €${cartTotal.toFixed(2)} foi concluída na loja!\n\nPor favor, envie o valor de €${cartTotal.toFixed(2)} via MB Way para o número ${CONTACT_NUMBER.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3')}.${emailMsg}`,
+        type: 'alert'
+      });
+
+      setCart([]);
+      setView('shop');
+      setShowMBWayModal(false);
+      setMbWayPhone('');
+      setShippingAddress({ street: '', city: '', postalCode: '' });
     } catch (error: any) {
       console.error("Erro ao processar checkout:", error);
       setModal({
@@ -3259,6 +3398,14 @@ export default function App() {
               showSearch={view === 'shop'}
               isAdmin={isAdmin}
               onGoToAdmin={() => setView('admin')}
+              hasPendingOrders={orders.some((o: any) => o.status === 'pending' || o.status === 'new' || o.status === 'whatsapp_pending') || newOrderAlert}
+              onLogoClick={() => {
+                if (isAdmin) {
+                  setView('admin');
+                } else {
+                  setView('shop');
+                }
+              }}
             />
             
             <main className="pb-20">
@@ -3296,6 +3443,7 @@ export default function App() {
                   statusMessage={statusMessage}
                   setStatusMessage={setStatusMessage}
                   orders={orders}
+                  setOrders={setOrders}
                   setModal={setModal}
                 />
               )}
